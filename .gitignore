@@ -1,0 +1,35 @@
+# Maven / Java
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.log
+*.iml
+
+# IntelliJ
+.idea/
+*.iws
+*.iml
+out/
+
+# VSCode
+.vscode/
+
+# Node
+node_modules/
+dist/
+build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Pretrained or large model files (optional if you don't want to commit)
+OneDrop/pretrained_models/
+OneDrop/tools/pretrained_models/
+OneDrop/target/
+temp/
+tracks/
+# npm / pnpm lock if desired
+# package-lock.json
