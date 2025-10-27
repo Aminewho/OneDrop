@@ -27,7 +27,7 @@ Thumbs.db
 
 # Pretrained or large model files (optional if you don't want to commit)
 OneDrop/pretrained_models/
-OneDrop/tools/pretrained_models/
+OneDrop/tools/
 OneDrop/target/
 temp/
 tracks/
