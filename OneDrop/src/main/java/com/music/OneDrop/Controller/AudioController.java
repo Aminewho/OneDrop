@@ -1,77 +1,172 @@
 package com.music.OneDrop.Controller;
 
 import com.music.OneDrop.Service.AudioProcessorService;
+import com.music.OneDrop.Service.TaskStatusManager;
+import com.music.OneDrop.repository.VideoRepository;
+import com.music.OneDrop.Service.TaskStatusManager.Status;
+import com.music.OneDrop.model.VideoEntry; // Assumer l'existence de l'entité VideoEntry
+import com.music.OneDrop.Dto.ProcessRequestDTO; // Assumer l'existence du DTO
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
 import java.net.MalformedURLException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/audio")
-@CrossOrigin(origins = "http://localhost:5000") // Assurez-vous que l'origine de votre frontend est correcte
+@CrossOrigin(origins = "http://localhost:5000") // CORS pour le front-end React
 public class AudioController {
 
     private final AudioProcessorService audioProcessorService;
-
-    // Chemin défini dans AudioProcessorService pour le stockage des pistes
-    // NOTE: Idéalement, on devrait le récupérer du service ou d'une configuration. 
-    // Pour la cohérence, on va le redéfinir ici (ou créer une méthode getter dans le service).
-    // Nous allons le définir comme constante locale basée sur la structure du service.
-    private static final String APP_NAME_FOLDER = "OneDropMusic";
+    private final TaskStatusManager statusManager;
+    private final VideoRepository videoRepository;
+    
+    // --- Chemins (Basés sur la configuration de AudioProcessorService) ---
+    private static final String APP_NAME_FOLDER = "OneDrop"; // NOTE: Utilisé dans le service
     private static final Path PERMANENT_TRACKS_DIR = 
         Paths.get(System.getProperty("user.home"), APP_NAME_FOLDER, "tracks");
     
-    // Injection du service
-    public AudioController(AudioProcessorService audioProcessorService) {
+    // Injection du service et du gestionnaire de statut
+    public AudioController(AudioProcessorService audioProcessorService, TaskStatusManager statusManager, VideoRepository videoRepository) {
         this.audioProcessorService = audioProcessorService;
+        this.statusManager = statusManager;
+        this.videoRepository = videoRepository;
     }
 
     // ----------------------------------------------------------------------
-    // 1. ENDPOINT POUR DÉCLENCHER LE TRAITEMENT SPLEETER (POST /process)
+    // 1. ENDPOINT POUR DÉCLENCHER LE TRAITEMENT ASYNCHRONE (POST /process)
     // ----------------------------------------------------------------------
     
     /**
-     * Déclenche le téléchargement de l'audio, la séparation Spleeter et le stockage local.
-     * Cette méthode doit être appelée une seule fois par vidéo.
-     * * @param videoId L'ID de la vidéo YouTube.
-     * @return Statut de la requête.
+     * Déclenche le téléchargement et la séparation audio de manière ASYNCHRONE.
+     * Prend le videoId, le titre et la durée dans le corps de la requête (JSON).
+     * Retourne immédiatement 202 Accepted.
      */
     @PostMapping("/process")
-    // NOTE : Ajoutez @Async à cette méthode (et activez-la dans la config Spring)
-    // si vous ne voulez pas que la requête HTTP bloque pendant 5-15 minutes !
-    public ResponseEntity<String> processAudioAndStore(@RequestParam String videoId) 
-    {
+    public ResponseEntity<String> processAudio(@RequestBody ProcessRequestDTO requestDTO) {
+        
+        String videoId = requestDTO.getVideoId();
+        
+        if (videoId == null || videoId.isEmpty() || requestDTO.getVideoTitle() == null) {
+            return new ResponseEntity<>("Missing videoId or videoTitle in request body.", HttpStatus.BAD_REQUEST);
+        }
+
+        Status currentStatus = statusManager.getStatus(videoId);
+        
+        // Empêcher de relancer une tâche déjà en cours
+        if (currentStatus != null && currentStatus != Status.FAILED && currentStatus != Status.COMPLETED) {
+            return new ResponseEntity<>("Task for videoId " + videoId + " is already in progress: " + currentStatus, HttpStatus.ACCEPTED);
+        }
+
         try {
-            audioProcessorService.processAudioInternal(videoId);
+            // -------------------------------------------------------------------
+            // NOUVEAU : ENREGISTRER/METTRE À JOUR DANS LA BASE DE DONNÉES H2
+            // -------------------------------------------------------------------
+            
+            Optional<VideoEntry> existingEntry = videoRepository.findById(videoId);
+            VideoEntry entryToSave;
 
-            return ResponseEntity.ok()
-                .body("Traitement Spleeter terminé. Les pistes sont stockées localement.");
+            if (existingEntry.isPresent()) {
+                // Si la vidéo existe (relance ou mise à jour)
+                entryToSave = existingEntry.get();
+                entryToSave.setStatus(Status.PENDING.name()); // Réinitialiser le statut
+                entryToSave.setVideoTitle(requestDTO.getVideoTitle()); 
+                entryToSave.setDuration(requestDTO.getDuration()); 
+                entryToSave.setProcessedAt(null); // Effacer la date de complétion pour un nouveau run
+                // NOTE: Laisser entryToSave.setStemsJson() inchangé ou NULL si on le gère dans le service
+            } else {
+                // Si c'est un nouveau traitement, créer une nouvelle entrée
+                entryToSave = new VideoEntry();
+                entryToSave.setVideoId(videoId);
+                entryToSave.setVideoTitle(requestDTO.getVideoTitle());
+                entryToSave.setDuration(requestDTO.getDuration());
+                entryToSave.setStatus(Status.PENDING.name());
+                entryToSave.setProcessedAt(null); 
+                // RETIRÉ : entryToSave.setStemsJson(null); -> Géré par la valeur par défaut DB/Entité
+            }
+            
+            videoRepository.save(entryToSave); // Sauvegarde/Mise à jour dans H2
 
-        } catch (IllegalStateException e) {
-            // Statut 409 Conflict si les pistes existent déjà
-            return ResponseEntity.status(409).body("Pistes pour cette vidéo déjà disponibles.");
+            // Lancement de la méthode asynchrone : le thread HTTP est libéré immédiatement.
+            audioProcessorService.startAudioProcessing(videoId);
+            
+            // Retourne 202 Accepted pour indiquer au front-end que le travail a commencé en arrière-plan.
+            return new ResponseEntity<>("Processing started asynchronously for videoId: " + videoId, HttpStatus.ACCEPTED);
+            
         } catch (Exception e) {
-            System.err.println("Échec du traitement audio pour " + videoId + ": " + e.getMessage());
-            e.printStackTrace();
-            return ResponseEntity.internalServerError().body("Échec critique du traitement audio.");
+            System.err.println("Error starting process for " + videoId + ": " + e.getMessage());
+            // En cas d'échec de lancement, mettre à jour le statut dans le manager
+            statusManager.updateStatus(videoId, Status.FAILED);
+            // NOTE: Une mise à jour de la DB ici serait aussi nécessaire en cas d'échec critique avant le lancement du service.
+            return new ResponseEntity<>("Internal server error when trying to start process. " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
     // ----------------------------------------------------------------------
-    // 2. ENDPOINT POUR SERVIR LES PISTES AUDIO (GET /serve/track)
+    // 2. ENDPOINT POUR RÉCUPÉRER LE STATUT (GET /status?videoId=...)
+    // ----------------------------------------------------------------------
+    
+    /**
+     * Permet au front-end de faire du polling pour suivre la progression de la tâche.
+     * Retourne le statut de la tâche (PENDING, SEPARATING, COMPLETED, etc.).
+     */
+    @GetMapping("/status")
+    public ResponseEntity<String> getStatus(@RequestParam String videoId) {
+        Status status = statusManager.getStatus(videoId);
+
+        if (status == null) {
+            // Si la tâche n'a jamais été lancée ou a été effacée
+            return new ResponseEntity<>("UNKNOWN", HttpStatus.NOT_FOUND);
+        }
+
+        // Retourne le statut sous forme de chaîne simple (texte) avec 200 OK
+        return new ResponseEntity<>(status.name(), HttpStatus.OK);
+    }
+
+    // ----------------------------------------------------------------------
+    // 3. ENDPOINT POUR RÉCUPÉRER LA LISTE DES VIDÉOS (GET /videos)
+    // ----------------------------------------------------------------------
+
+    /**
+     * Récupère toutes les entrées vidéo de la base de données (vidéos traitées ou en cours).
+     * Les données sont triées par date de traitement (du plus récent au plus ancien).
+     */
+    @GetMapping("/videos")
+    public ResponseEntity<List<VideoEntry>> getProcessedVideos() {
+        try {
+            // Utilise la méthode personnalisée définie dans VideoRepository pour trier
+            List<VideoEntry> videos = videoRepository.findAllByOrderByProcessedAtDesc();
+            
+            // Filtrer les vidéos complétées (évite ConcurrentModificationException)
+            List<VideoEntry> completedVideos = new java.util.ArrayList<>();
+            for (VideoEntry video : videos) {
+                if (video.getStatus() != null && video.getStatus().equals("COMPLETED")) {
+                    completedVideos.add(video);
+                }
+            }
+            
+            return new ResponseEntity<>(completedVideos, HttpStatus.OK);
+        } catch (Exception e) {
+            System.err.println("Error retrieving processed videos list: " + e.getMessage());
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+    
+    // ----------------------------------------------------------------------
+    // 4. ENDPOINT POUR SERVIR LES PISTES AUDIO (GET /serve/track?videoId=...&trackName=...)
     // ----------------------------------------------------------------------
     
     /**
      * Sert un fichier de piste audio stocké localement au client (streaming).
-     * * @param videoId L'ID de la vidéo parente.
-     * @param trackName Le nom de la piste (ex: "vocals", "drums", etc.).
-     * @return La piste audio sous forme de flux de données (Resource).
      */
     @GetMapping("/serve/track")
     public ResponseEntity<Resource> serveTrack(
@@ -82,32 +177,33 @@ public class AudioController {
         String fileName = trackName + ".wav"; 
         
         // Chemin complet du fichier sur le disque local de l'utilisateur
-        // Ex: C:\Users\Nom\OneDropMusic\tracks\OmTOEdNyT6c\vocals.wav
         Path filePath = PERMANENT_TRACKS_DIR
             .resolve(videoId)
             .resolve(fileName);
 
         try {
-            // 1. Création de la ressource Spring à partir du chemin URI
             Resource resource = new UrlResource(filePath.toUri());
 
             if (resource.exists() && resource.isReadable()) {
                 
-                // 2. Définition du type de média (MIME type)
-                // Spleeter produit des fichiers WAV par défaut.
+                // Définition du type de média (MIME type) pour un fichier WAV
                 MediaType contentType = MediaType.parseMediaType("audio/wav"); 
 
-                // 3. Renvoi de la réponse avec les headers pour le streaming
+                // Renvoi de la réponse avec les headers pour le streaming (inline pour les navigateurs)
                 return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + fileName + "\"")
                     .contentType(contentType)
+                    .contentLength(resource.contentLength()) // Ajout de la taille du contenu
                     .body(resource);
             } else {
                 // Fichier introuvable
                 return ResponseEntity.notFound().build();
             }
         } catch (MalformedURLException e) {
-            System.err.println("Erreur de chemin de fichier: " + filePath.toString());
+            System.err.println("Erreur de chemin de fichier pour le streaming: " + filePath.toString());
+            return ResponseEntity.internalServerError().build();
+        } catch (IOException e) {
+            System.err.println("Erreur de lecture de fichier: " + filePath.toString());
             return ResponseEntity.internalServerError().build();
         }
     }

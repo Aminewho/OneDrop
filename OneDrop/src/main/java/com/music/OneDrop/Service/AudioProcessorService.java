@@ -9,11 +9,14 @@ import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
-
+import com.music.OneDrop.repository.VideoRepository;
 // Importez les classes de statut que nous avons définies
 import com.music.OneDrop.Service.TaskStatusManager; 
 import com.music.OneDrop.Service.TaskStatusManager.Status;
+import com.music.OneDrop.model.VideoEntry;
 
 @Service
 public class AudioProcessorService {
@@ -40,12 +43,13 @@ public class AudioProcessorService {
     private static final String SPLEETER_EXEC_PATH = 
         Paths.get(WORKING_DIR, "tools", "spleeter.exe").toAbsolutePath().toString(); 
 
-    // Injection du gestionnaire de statut
-    private final TaskStatusManager statusManager;
-
-    public AudioProcessorService(TaskStatusManager statusManager) {
-        this.statusManager = statusManager;
-    }
+// Injection du gestionnaire de statut
+private final TaskStatusManager statusManager;
+private final VideoRepository videoRepository;
+public AudioProcessorService(TaskStatusManager statusManager, VideoRepository videoRepository) {
+    this.statusManager = statusManager;
+    this.videoRepository = videoRepository;
+}
 
     // --- 2. FONCTION UTILITAIRE : EXÉCUTION DE COMMANDE (MODIFIÉE) ---
     
@@ -88,18 +92,40 @@ public class AudioProcessorService {
     /**
      * Démarre le traitement audio dans un thread séparé et met à jour l'état.
      */
-    @Async 
+    @Async
     public void startAudioProcessing(String videoId) {
-        
-        statusManager.updateStatus(videoId, Status.PENDING);
-        
         try {
             processAudioInternal(videoId);
-            statusManager.updateStatus(videoId, Status.COMPLETED);
-            
+            handleSuccess(videoId);
         } catch (Exception e) {
             System.err.println("Échec du traitement audio pour " + videoId + ": " + e.getMessage());
-            statusManager.updateStatus(videoId, Status.FAILED);
+            handleFailure(videoId);
+        }
+    }
+
+    private void handleSuccess(String videoId) {
+        statusManager.updateStatus(videoId, Status.COMPLETED);
+        Optional<VideoEntry> optionalEntry = videoRepository.findById(videoId);
+        if (optionalEntry.isPresent()) {
+            VideoEntry entry = optionalEntry.get();
+            entry.setStatus(Status.COMPLETED.name());
+            entry.setProcessedAt(LocalDateTime.now());
+            videoRepository.save(entry);
+            System.out.println("Processing COMPLETED and DB updated for: " + videoId);
+        } else {
+            System.err.println("CRITICAL: Video entry not found in DB after successful completion: " + videoId);
+        }
+    }
+
+    private void handleFailure(String videoId) {
+        statusManager.updateStatus(videoId, Status.FAILED);
+        Optional<VideoEntry> optionalEntry = videoRepository.findById(videoId);
+        if (optionalEntry.isPresent()) {
+            VideoEntry entry = optionalEntry.get();
+            entry.setStatus(Status.FAILED.name());
+            entry.setProcessedAt(null);
+            videoRepository.save(entry);
+            System.err.println("Processing FAILED and DB updated for: " + videoId);
         }
     }
 
