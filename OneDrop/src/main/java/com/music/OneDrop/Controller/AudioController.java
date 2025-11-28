@@ -165,18 +165,15 @@ public class AudioController {
     // 4. ENDPOINT POUR SERVIR LES PISTES AUDIO (GET /serve/track?videoId=...&trackName=...)
     // ----------------------------------------------------------------------
     
-    /**
-     * Sert un fichier de piste audio stocké localement au client (streaming).
-     */
     @GetMapping("/serve/track")
     public ResponseEntity<Resource> serveTrack(
         @RequestParam String videoId, 
         @RequestParam String trackName) 
     {
-        // Le nom de fichier par défaut de Spleeter est {trackName}.wav
+        // Le fichier généré par notre service est toujours un .wav
         String fileName = trackName + ".wav"; 
         
-        // Chemin complet du fichier sur le disque local de l'utilisateur
+        // Construit le chemin : C:\Users\...\OneDrop\tracks\{videoId}\{trackName}.wav
         Path filePath = PERMANENT_TRACKS_DIR
             .resolve(videoId)
             .resolve(fileName);
@@ -185,25 +182,18 @@ public class AudioController {
             Resource resource = new UrlResource(filePath.toUri());
 
             if (resource.exists() && resource.isReadable()) {
-                
-                // Définition du type de média (MIME type) pour un fichier WAV
-                MediaType contentType = MediaType.parseMediaType("audio/wav"); 
-
-                // Renvoi de la réponse avec les headers pour le streaming (inline pour les navigateurs)
                 return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + fileName + "\"")
-                    .contentType(contentType)
-                    .contentLength(resource.contentLength()) // Ajout de la taille du contenu
+                    .contentType(MediaType.parseMediaType("audio/wav"))
+                    .contentLength(resource.contentLength())
                     .body(resource);
             } else {
-                // Fichier introuvable
+                System.err.println("Fichier introuvable ou illisible : " + filePath);
                 return ResponseEntity.notFound().build();
             }
         } catch (MalformedURLException e) {
-            System.err.println("Erreur de chemin de fichier pour le streaming: " + filePath.toString());
             return ResponseEntity.internalServerError().build();
         } catch (IOException e) {
-            System.err.println("Erreur de lecture de fichier: " + filePath.toString());
             return ResponseEntity.internalServerError().build();
         }
     }
