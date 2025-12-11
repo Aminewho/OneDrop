@@ -31,5 +31,7 @@ OneDrop/tools/
 OneDrop/target/
 temp/
 tracks/
+spleeter_db.mv.db
+spleeter_db.lock.db
 # npm / pnpm lock if desired
 # package-lock.jsonOneDrop/tools/spleeter.exe

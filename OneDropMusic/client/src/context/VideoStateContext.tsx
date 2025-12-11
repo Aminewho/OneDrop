@@ -25,8 +25,35 @@ export interface TaskStatuses {
     [videoId: string]: TaskStatus;
 }
 
-/** Représente la structure complète du contexte de l'état des vidéos. */
+// --- NOUVELLES INTERFACES POUR LE LECTEUR AUDIO GLOBAL ---
+
+/** * Fonctions de contrôle du lecteur audio (définies et fournies par le composant Separator 
+ * qui gère l'instance Web Audio). 
+ */
+export interface PlayerControls {
+  togglePlayPause?: () => void;
+  seek?: (time: number) => void;
+}
+
+/** Informations de base sur la piste en cours de lecture. */
+export interface VideoInfo {
+  id: string | null;
+  title: string | null;
+  artist: string | null; // Assumé être le channelTitle ou autre
+}
+
+const DEFAULT_VIDEO_INFO: VideoInfo = {
+    id: null,
+    title: null,
+    artist: null,
+};
+
+const DEFAULT_PLAYER_CONTROLS: PlayerControls = {};
+
+
+/** Représente la structure complète du contexte de l'état des vidéos et du lecteur. */
 export interface VideoStateContextType {
+    // Propriétés de Recherche et Tâches (Existantes)
     searchQuery: string;
     setSearchQuery: React.Dispatch<React.SetStateAction<string>>;
     videos: Video[];
@@ -35,10 +62,49 @@ export interface VideoStateContextType {
     taskStatuses: TaskStatuses;
     fetchVideos: (query: string) => Promise<void>;
     handleProcessVideo: (videoId: string) => Promise<void>;
+
+    // Propriétés du Lecteur Audio (Nouveau)
+    isPlaying: boolean;
+    currentTime: number;
+    duration: number;
+    videoInfo: VideoInfo;
+    
+    // Fonctions pour mettre à jour l'état du lecteur
+    updateCurrentTime: (time: number) => void;
+    updateDuration: (duration: number) => void;
+
+    // Fonctions pour définir les contrôles exposés par le composant de lecture (Separator)
+    playerControls: PlayerControls;
+    setPlayerControls: React.Dispatch<React.SetStateAction<PlayerControls>>;
+    setVideoInfo: React.Dispatch<React.SetStateAction<VideoInfo>>;
 }
 
 // --- CONTEXTE ---
-export const VideoStateContext = createContext<VideoStateContextType | null>(null);
+// Nous devons initialiser le contexte avec un objet VideoStateContextType complet.
+const initialContextValue: VideoStateContextType = {
+    searchQuery: '',
+    setSearchQuery: () => {},
+    videos: [],
+    isLoading: false,
+    error: null,
+    taskStatuses: {},
+    fetchVideos: async () => {},
+    handleProcessVideo: async () => {},
+
+    isPlaying: false,
+    currentTime: 0,
+    duration: 0,
+    videoInfo: DEFAULT_VIDEO_INFO,
+    
+    updateCurrentTime: () => {},
+    updateDuration: () => {},
+
+    playerControls: DEFAULT_PLAYER_CONTROLS,
+    setPlayerControls: () => {},
+    setVideoInfo: () => {},
+};
+
+export const VideoStateContext = createContext<VideoStateContextType>(initialContextValue);
 
 // Constantes API (à déplacer dans un fichier config si le projet grandit)
 const API_BASE_URL = "http://localhost:8080";
@@ -47,6 +113,7 @@ const API_BASE_URL = "http://localhost:8080";
 export const useVideoState = (): VideoStateContextType => {
     const context = useContext(VideoStateContext);
     if (!context) {
+        // Cette erreur ne devrait jamais se produire si le Provider est utilisé correctement
         throw new Error('useVideoState must be used within a VideoStateProvider');
     }
     return context;
@@ -63,6 +130,7 @@ function loadInitialState<T>(key: string, defaultValue: T): T {
     try {
         const storedValue = localStorage.getItem(key);
         if (storedValue) {
+            // Utiliser un `as T` ici pour forcer le type, car JSON.parse retourne 'any'
             return JSON.parse(storedValue) as T;
         }
     } catch (error) {
@@ -81,7 +149,7 @@ interface VideoStateProviderProps {
 
 // --- PROVIDER ---
 export const VideoStateProvider: React.FC<VideoStateProviderProps> = ({ children }) => {
-    // Chargement de l'état initial depuis localStorage
+    // Chargement de l'état initial depuis localStorage (Existants)
     const [searchQuery, setSearchQuery] = useState<string>(
         loadInitialState(LS_SEARCH_QUERY_KEY, '')
     );
@@ -94,8 +162,49 @@ export const VideoStateProvider: React.FC<VideoStateProviderProps> = ({ children
 
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
+    
+    // --- NOUVEAUX ÉTATS POUR LE LECTEUR AUDIO ---
+    const [isPlaying, setIsPlaying] = useState<boolean>(false);
+    const [currentTime, setCurrentTime] = useState<number>(0);
+    const [duration, setDuration] = useState<number>(0);
+    const [videoInfo, setVideoInfo] = useState<VideoInfo>(DEFAULT_VIDEO_INFO);
 
-    // --- LOGIQUE DE PERSISTANCE VERS LOCAL STORAGE ---
+    // Contient les fonctions de lecture/pause/recherche fournies par le composant `Separator`
+    const [playerControls, setPlayerControls] = useState<PlayerControls>(DEFAULT_PLAYER_CONTROLS);
+    
+    // Fonctions exposées pour mettre à jour l'état du lecteur
+    const updateCurrentTime = useCallback((time: number) => {
+        setCurrentTime(time);
+        // Utiliser aussi le isPlaying pour le MusicPlayer
+        if (time > 0) {
+            setIsPlaying(true);
+        } else {
+            // Optionnel : si le temps revient à 0, cela peut indiquer la fin de la lecture
+        }
+    }, []);
+
+    const updateDuration = useCallback((d: number) => {
+        setDuration(d);
+    }, []);
+    
+    // Si playerControls.togglePlayPause est appelé, on bascule aussi l'état isPlaying
+    useEffect(() => {
+        // Ce useEffect est uniquement pour mettre à jour isPlaying lorsque playerControls est défini.
+        // La vraie mise à jour de isPlaying sera faite par le composant Separator via updateCurrentTime ou un autre mécanisme
+        
+        // C'est un point de synchronisation délicat. Pour l'instant, nous faisons confiance
+        // au composant Separator pour mettre à jour l'état `isPlaying` via une fonction
+        // qu'il exposera ou via l'observation de `currentTime`.
+        // Simplifions en ajoutant une fonction explicite à `PlayerControls` pour contrôler `isPlaying`.
+        
+        // Si vous modifiez Separator.tsx, assurez-vous qu'il appelle setCurrentTime
+        // dans sa boucle audio, et qu'il appelle isPlaying quand il démarre/s'arrête.
+        
+        // Pour l'instant, on laisse isPlaying géré par updateCurrentTime (si > 0) et par le MusicPlayer
+    }, [playerControls]);
+
+
+    // --- LOGIQUE DE PERSISTANCE VERS LOCAL STORAGE (Existantes) ---
 
     useEffect(() => {
         // Utilisation de JSON.stringify() pour s'assurer que même les chaînes vides sont stockées
@@ -264,6 +373,7 @@ export const VideoStateProvider: React.FC<VideoStateProviderProps> = ({ children
 
 
     const contextValue: VideoStateContextType = {
+        // Existants
         searchQuery,
         setSearchQuery,
         videos,
@@ -271,7 +381,18 @@ export const VideoStateProvider: React.FC<VideoStateProviderProps> = ({ children
         error,
         taskStatuses,
         fetchVideos,
-        handleProcessVideo
+        handleProcessVideo,
+        
+        // Nouveaux
+        isPlaying,
+        currentTime,
+        duration,
+        videoInfo,
+        updateCurrentTime,
+        updateDuration,
+        playerControls,
+        setPlayerControls,
+        setVideoInfo,
     };
 
     return (

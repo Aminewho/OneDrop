@@ -19,9 +19,11 @@ import Playlists from "@/pages/Playlists";
 
 function Router() {
   return (
+    
     <Switch>
       {/* Utilisation de wouter. La route sans "exact" agit comme "exact" si elle est placée en premier 
           et qu'elle est la plus courte. */}
+          
       <Route path="/" component={Videos} />
       <Route path="/separator" component={Separator} />
       <Route path="/library" component={Library} />
