@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "react-hot-toast"; // Assurez-vous d'avoir installé react-hot-toast
 
 // --- 1. CONSTANTES & TYPES ---
-const API_BASE_URL = "http://localhost:8080";
+const API_BASE_URL = "http://127.0.0.1:8080";
 
 // Clés Local Storage
 const LS_SEARCH_QUERY_KEY = 'videoSearchQuery_page';
@@ -305,19 +305,7 @@ export default function Videos() {
                         {isLoading ? 'Searching...' : 'Search'}
                     </Button>
                 </form>
-                 <div className="flex items-center gap-2 overflow-x-auto pb-2">
-                    {filterCategories.map((category) => (
-                        <Button
-                            key={category}
-                            variant={selectedFilter === category ? "secondary" : "ghost"}
-                            size="sm"
-                            onClick={() => setSelectedFilter(category)}
-                            data-testid={`button-filter-${category.toLowerCase().replace(' ', '-')}`}
-                        >
-                            {category}
-                        </Button>
-                    ))}
-                </div>
+                
 
                 {/* Affichage des Vidéos */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">

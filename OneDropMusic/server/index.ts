@@ -1,11 +1,24 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-
+import { createProxyMiddleware } from 'http-proxy-middleware';
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-
+app.use(
+  '/spotify',
+  createProxyMiddleware({
+    // Target is your Spring backend running on port 8080
+    target: 'http://127.0.0.1:8080', 
+    // Important for host headers in the proxy target
+    changeOrigin: true, 
+    // Optional: Log proxying activity
+    logLevel: 'debug',
+    // 🚨 Critical for mapping: If your Spring controller uses @RequestMapping("/spotify"),
+    // then the frontend calls /spotify/search, which maps to 127.0.0.1:8080/spotify/search.
+    // If you need the path to be cleaned up, use pathRewrite, but we will assume no rewrite is needed initially.
+  } as any)
+);
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;

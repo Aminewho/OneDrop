@@ -23,7 +23,6 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/audio")
-@CrossOrigin(origins = "http://localhost:5000") // CORS pour le front-end React
 public class AudioController {
 
     private final AudioProcessorService audioProcessorService;

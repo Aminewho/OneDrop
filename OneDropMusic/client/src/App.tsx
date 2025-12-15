@@ -16,7 +16,8 @@ import Videos from "@/pages/Videos";
 import Separator from "@/pages/Separator";
 import Library from "@/pages/Library";
 import Playlists from "@/pages/Playlists";
-
+import SpotifyAuthPage from "@/pages/SpotifyAuthPage";
+import SpotifySearchPage from './pages/SpotifySearchPage';  
 function Router() {
   return (
     
@@ -27,7 +28,10 @@ function Router() {
       <Route path="/" component={Videos} />
       <Route path="/separator" component={Separator} />
       <Route path="/library" component={Library} />
-      <Route path="/playlists" component={Playlists} />
+      <Route path="/playlists" component={Playlists} />^
+      <Route path="/spotify-callback" component={SpotifyAuthPage}/>
+       <Route path="/spotify-search" component={SpotifySearchPage}/>
+
     </Switch>
   );
 }

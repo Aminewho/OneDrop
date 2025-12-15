@@ -80,7 +80,7 @@ interface StemControl {
     hasLoadError: boolean;
 }
 
-const API_BASE_URL = "http://localhost:8080";
+const API_BASE_URL = "http://127.0.0.1:8080";
 
 // Helper pour formater le temps en MM:SS
 const formatTime = (seconds: number): string => {
@@ -741,181 +741,204 @@ export default function Separator() {
                 
                 {/* --- BARRE DE LECTURE (PLAYER BAR) --- */}
                 <Card className="mb-4 p-4 shadow-xl bg-gray-900 dark:bg-gray-900 text-white">
-                    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4">
+        
+        {/* 1. Barre de Progression (Seek Bar) avec Temps */}
+        <div className="flex items-center w-full gap-3">
+            
+            {/* Temps Actuel */}
+            <span className="text-sm font-mono text-gray-300 w-12 text-left shrink-0">
+                {formatTime(playbackTime)}
+            </span>
+            
+            {/* Barre et Visualisation */}
+            <div className="flex-1 relative h-2 flex items-center" ref={seekBarRef}>
+                
+                {/* Piste de fond grise pour la barre (couche 1) */}
+                <div className="absolute inset-0 h-2 bg-gray-600 dark:bg-gray-700 rounded-full" />
+
+                {/* Visualisation de la zone de boucle (si active) (couche 2) */}
+                {isLooping && loopEnd > loopStart && (
+                    <div 
+                        className="absolute h-2 bg-blue-500/50 z-0"
+                        style={{
+                            left: `${(loopStart / maxDuration) * 100}%`,
+                            width: `${((loopEnd - loopStart) / maxDuration) * 100}%`,
+                        }}
+                    />
+                )}
+                
+                {/* Range Input (Le fader lui-même et la progression blanche) (couche 3: z-10) */}
+                <input 
+                    type="range"
+                    min="0"
+                    max={maxDuration}
+                    step="0.01"
+                    value={playbackTime}
+                    onChange={(e) => {
+                        setPlaybackTime(parseFloat(e.target.value));
+                    }}
+                    onMouseUp={(e) => {
+                        handleSeek(parseFloat((e.target as HTMLInputElement).value));
+                    }}
+                    onTouchEnd={(e) => {
+                        handleSeek(parseFloat((e.target as HTMLInputElement).value));
+                    }}
+                    disabled={!isAudioReady || stems.some(s => s.hasLoadError)}
+                    className={`h-2 appearance-none rounded-full transition-colors flex-1 cursor-pointer w-full relative z-10`}
+                    style={{ 
+                        WebkitAppearance: 'none', 
+                        background: `linear-gradient(to right, 
+                            #ffffff ${playbackPercent}%, 
+                            transparent ${playbackPercent}%, 
+                            transparent 100%)`,
+                        opacity: 1, 
+                    } as React.CSSProperties}
+                />
+                
+                {/* Marqueur A (Loop Start) - STYLE BARRE VERTICALE (couche 4: z-20) */}
+                {maxDuration > 0 && isLooping && (
+                    <div 
+                        className="absolute top-1/2 -translate-y-1/2 pointer-events-auto cursor-ew-resize active:cursor-grabbing z-20 touch-none" 
+                        style={{ left: `${(loopStart / maxDuration) * 100}%`, transform: 'translateX(-50%)' }}
+                        onMouseDown={(e) => handleDragStart(e, 'start')}
+                        onTouchStart={(e) => handleDragStart(e, 'start')}
+                    >
+                        {/* Zone invisible plus large pour attraper facilement la barre */}
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-8 bg-transparent" />
                         
-                        {/* 1. Barre de Progression (Seek Bar) avec Temps */}
-                        <div className="flex items-center w-full gap-3">
-                            
-                            {/* Temps Actuel */}
-                            <span className="text-sm font-mono text-gray-300 w-12 text-left shrink-0">
-                                {formatTime(playbackTime)}
-                            </span>
-                            
-                            {/* Barre et Visualisation */}
-                            <div className="flex-1 relative h-2" ref={seekBarRef}>
-                                
-                                {/* Piste de fond grise pour la barre (couche 1) */}
-                                <div className="absolute inset-0 h-2 bg-gray-600 dark:bg-gray-700 rounded-full" />
-
-                                {/* Visualisation de la zone de boucle (si active) (couche 2) */}
-                                {isLooping && loopEnd > loopStart && (
-                                    <div 
-                                        className="absolute top-0 h-full bg-blue-500/30 rounded-full transition-all duration-100"
-                                        style={{
-                                            left: `${(loopStart / maxDuration) * 100}%`,
-                                            width: `${((loopEnd - loopStart) / maxDuration) * 100}%`,
-                                        }}
-                                    />
-                                )}
-                                
-                                {/* Range Input (Le fader lui-même et la progression blanche) (couche 3: z-10) */}
-                                <input 
-                                    type="range"
-                                    min="0"
-                                    max={maxDuration}
-                                    step="0.01"
-                                    value={playbackTime}
-                                    onChange={(e) => {
-                                        setPlaybackTime(parseFloat(e.target.value));
-                                    }}
-                                    onMouseUp={(e) => {
-                                        handleSeek(parseFloat((e.target as HTMLInputElement).value));
-                                    }}
-                                    onTouchEnd={(e) => {
-                                        handleSeek(parseFloat((e.target as HTMLInputElement).value));
-                                    }}
-                                    disabled={!isAudioReady || stems.some(s => s.hasLoadError)}
-                                    className={`h-2 appearance-none rounded-full transition-colors flex-1 cursor-pointer w-full relative z-10`}
-                                    style={{ 
-                                        WebkitAppearance: 'none', 
-                                        background: `linear-gradient(to right, 
-                                            #ffffff ${playbackPercent}%, 
-                                            transparent ${playbackPercent}%, 
-                                            transparent 100%)`,
-                                        opacity: 1, 
-                                    } as React.CSSProperties}
-                                />
-                                
-                                {/* Marqueur A (Loop Start) - Draggable (couche 4: z-20) */}
-                                {maxDuration > 0 && (
-                                    <div 
-                                        className="absolute top-1/2 -translate-y-1/2 pointer-events-auto cursor-grab active:cursor-grabbing z-20" 
-                                        style={{ left: `${(loopStart / maxDuration) * 100}%`, transform: 'translateX(-50%)' }}
-                                        onMouseDown={(e) => handleDragStart(e, 'start')}
-                                        onTouchStart={(e) => handleDragStart(e, 'start')}
-                                    >
-                                        <div className="w-5 h-5 bg-blue-600 rounded-full shadow-xl ring-2 ring-white dark:ring-gray-900 flex items-center justify-center text-xs font-bold text-white leading-none">A</div>
-                                    </div>
-                                )}
-                                
-                                {/* Marqueur B (Loop End) - Draggable (couche 4: z-20) */}
-                                {maxDuration > 0 && (
-                                    <div 
-                                        className="absolute top-1/2 -translate-y-1/2 pointer-events-auto cursor-grab active:cursor-grabbing z-20" 
-                                        style={{ left: `${(loopEnd / maxDuration) * 100}%`, transform: 'translateX(-50%)' }}
-                                        onMouseDown={(e) => handleDragStart(e, 'end')}
-                                        onTouchStart={(e) => handleDragStart(e, 'end')}
-                                    >
-                                        <div className="w-5 h-5 bg-red-600 rounded-full shadow-xl ring-2 ring-white dark:ring-gray-900 flex items-center justify-center text-xs font-bold text-white leading-none">B</div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Temps Restant (Calculé: maxDuration - playbackTime) */}
-                            <span className="text-sm font-mono text-gray-300 w-12 text-right shrink-0">
-                                -{formatTime(maxDuration - playbackTime)}
-                            </span>
-                        </div>
-                        
-                        {/* 2. Boutons de Contrôle */}
-                        <div className="flex items-center justify-center gap-6">
-                            
-                            {/* Bouton Rewind 5s */}
-                            <Button 
-                                onClick={handleRewind} 
-                                size="icon"
-                                variant="secondary"
-                                className="h-10 w-10 bg-transparent hover:bg-gray-800 text-white"
-                                disabled={!isAudioReady || stems.some(s => s.hasLoadError)}
-                            >
-                                <ArrowLeft className="w-6 h-6" />
-                            </Button>
-
-                            {/* Bouton Play/Pause Global */}
-                            <Button 
-                                onClick={toggleAllPlayback} 
-                                size="icon"
-                                variant="secondary"
-                                className="h-12 w-12 bg-transparent hover:bg-gray-800 text-white"
-                                disabled={!isAudioReady || stems.some(s => s.hasLoadError)}
-                            >
-                                {isAllPlaying ? (
-                                    <Pause className="w-8 h-8 fill-white" /> 
-                                ) : (
-                                    <Play className="w-8 h-8 fill-white ml-1" /> 
-                                )}
-                            </Button>
-                            
-                            {/* Bouton Forward 5s */}
-                            <Button 
-                                onClick={handleForward} 
-                                size="icon"
-                                variant="secondary"
-                                className="h-10 w-10 bg-transparent hover:bg-gray-800 text-white"
-                                disabled={!isAudioReady || stems.some(s => s.hasLoadError)}
-                            >
-                                <ArrowRight className="w-6 h-6" />
-                            </Button>
-
-                        </div>
+                        {/* La barre visuelle (Style "Handle") */}
+                        <div className="w-2 h-5 bg-gray-200 border border-gray-400 rounded-sm shadow-md ring-1 ring-black/20" />
                     </div>
-                </Card>
+                )}
+                
+                {/* Marqueur B (Loop End) - STYLE BARRE VERTICALE (couche 4: z-20) */}
+                {maxDuration > 0  && isLooping && (
+                    <div 
+                        className="absolute top-1/2 -translate-y-1/2 pointer-events-auto cursor-ew-resize active:cursor-grabbing z-20 touch-none" 
+                        style={{ left: `${(loopEnd / maxDuration) * 100}%`, transform: 'translateX(-50%)' }}
+                        onMouseDown={(e) => handleDragStart(e, 'end')}
+                        onTouchStart={(e) => handleDragStart(e, 'end')}
+                    >
+                        {/* Zone invisible plus large */}
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-8 bg-transparent" />
+
+                         {/* La barre visuelle (Style "Handle") */}
+                        <div className="w-2 h-5 bg-gray-200 border border-gray-400 rounded-sm shadow-md ring-1 ring-black/20" />
+                    </div>
+                )}
+            </div>
+
+            {/* Temps Restant */}
+            <span className="text-sm font-mono text-gray-300 w-12 text-right shrink-0">
+                -{formatTime(maxDuration - playbackTime)}
+            </span>
+        </div>
+        
+        {/* 2. Boutons de Contrôle (Reste inchangé) */}
+        <div className="flex items-center justify-center gap-6">
+            <Button 
+                onClick={handleRewind} 
+                size="icon"
+                variant="secondary"
+                className="h-10 w-10 bg-transparent hover:bg-gray-800 text-white"
+                disabled={!isAudioReady || stems.some(s => s.hasLoadError)}
+            >
+                <ArrowLeft className="w-6 h-6" />
+            </Button>
+
+            <Button 
+                onClick={toggleAllPlayback} 
+                size="icon"
+                variant="secondary"
+                className="h-12 w-12 bg-transparent hover:bg-gray-800 text-white"
+                disabled={!isAudioReady || stems.some(s => s.hasLoadError)}
+            >
+                {isAllPlaying ? (
+                    <Pause className="w-8 h-8 fill-white" /> 
+                ) : (
+                    <Play className="w-8 h-8 fill-white ml-1" /> 
+                )}
+            </Button>
+            
+            <Button 
+                onClick={handleForward} 
+                size="icon"
+                variant="secondary"
+                className="h-10 w-10 bg-transparent hover:bg-gray-800 text-white"
+                disabled={!isAudioReady || stems.some(s => s.hasLoadError)}
+            >
+                <ArrowRight className="w-6 h-6" />
+            </Button>
+
+        </div>
+    </div>
+</Card>
                 {/* --- FIN BARRE DE LECTURE --- */}
 
                 {/* --- CONTRÔLES DE BOUCLE (A-B Loop Controls) --- */}
-                <Card className="mb-8 p-4 shadow-xl bg-gray-50 dark:bg-gray-800 border-dashed border-2 border-gray-300 dark:border-gray-700">
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                        <div className="flex items-center gap-4 w-full sm:w-auto">
-                            <h3 className="font-semibold text-lg text-gray-900 dark:text-white flex-shrink-0">
-                                Boucle (A-B)
-                            </h3>
-                            <Button 
-                                onClick={toggleLoop} 
-                                variant={isLooping ? "default" : "outline"}
-                                className={isLooping ? "bg-green-600 hover:bg-green-700" : "text-gray-600 dark:text-gray-300"}
-                                disabled={loopStart >= loopEnd}
-                            >
-                                <Repeat2 className="w-5 h-5 mr-2" />
-                                {isLooping ? 'Boucle ON' : 'Boucle OFF'}
-                            </Button>
-                        </div>
-                        
-                        <div className="flex gap-2 w-full sm:w-auto">
-                            <Button 
-                                onClick={() => setLoopStart(Math.max(0.01, playbackTime))}
-                                variant={"default"}
-                                className="bg-blue-600 hover:bg-blue-700 text-white"
-                            >
-                                Marquer A 
-                                <span className="ml-2 font-mono text-xs text-blue-200">({formatTime(loopStart)})</span>
-                            </Button>
-                            <Button 
-                                onClick={() => setLoopEnd(Math.min(maxDuration, playbackTime))}
-                                variant={"default"}
-                                className="bg-red-600 hover:bg-red-700 text-white"
-                            >
-                                Marquer B 
-                                <span className="ml-2 font-mono text-xs text-red-200">({formatTime(loopEnd)})</span>
-                            </Button>
-                        </div>
-                    </div>
-                    
-                    {loopStart >= loopEnd && (
-                        <p className="mt-2 text-sm text-red-500 dark:text-red-400 text-center">
-                            ⚠️ Le point de début (A) doit être inférieur au point de fin (B) pour activer la boucle.
-                        </p>
-                    )}
-                </Card>
+          <Card className="mb-8 p-5 shadow-2xl bg-slate-900 border border-slate-700/50 rounded-2xl transition-all duration-300 ease-in-out">
+    <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+        
+        {/* Left Side: Title & Toggle */}
+        <div className="flex items-center gap-5 w-full md:w-auto justify-center md:justify-start">
+            <h3 className="font-bold text-lg text-blue-500 tracking-wide flex-shrink-0">
+                Loop (A-B)
+            </h3>
+            
+            <Button 
+                onClick={toggleLoop} 
+                className={`
+                    transition-all duration-200 ease-in-out shadow-lg border
+                    ${isLooping 
+                        ? "bg-gradient-to-b from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 border-green-400 text-white shadow-green-900/20" 
+                        : "bg-transparent border-slate-600 text-slate-400 hover:text-white hover:border-slate-500"
+                    }
+                `}
+                disabled={isLooping && loopStart >= loopEnd}
+            >
+                <Repeat2 className={`w-5 h-5 mr-2 ${isLooping ? "animate-spin-slow" : ""}`} />
+                {isLooping ? 'Loop ON' : 'Loop OFF'}
+            </Button>
+        </div>
+        
+        {/* Right Side: Markers (Only visible if Loop is ON) */}
+        {isLooping && (
+            <div className="flex gap-3 w-full md:w-auto justify-center md:justify-end animate-in fade-in slide-in-from-left-4 duration-300">
+                {/* Mark A Button */}
+                <Button 
+                    onClick={() => setLoopStart(Math.max(0.01, playbackTime))}
+                    className="bg-gradient-to-b from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white border border-blue-400/30 shadow-lg shadow-blue-900/20 active:scale-95 transition-transform"
+                >
+                    Mark A 
+                    <span className="ml-2 font-mono text-xs text-blue-200 opacity-80 border-l border-blue-400/30 pl-2">
+                        {formatTime(loopStart)}
+                    </span>
+                </Button>
+
+                {/* Mark B Button */}
+                <Button 
+                    onClick={() => setLoopEnd(Math.min(maxDuration, playbackTime))}
+                    className="bg-gradient-to-b from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white border border-red-400/30 shadow-lg shadow-red-900/20 active:scale-95 transition-transform"
+                >
+                    Mark B 
+                    <span className="ml-2 font-mono text-xs text-red-200 opacity-80 border-l border-red-400/30 pl-2">
+                        {formatTime(loopEnd)}
+                    </span>
+                </Button>
+            </div>
+        )}
+    </div>
+    
+    {/* Error Message (Only visible if Loop is ON and logic is invalid) */}
+    {isLooping && loopStart >= loopEnd && (
+        <div className="mt-4 p-2 rounded bg-red-900/20 border border-red-900/50 text-center animate-pulse">
+            <p className="text-sm text-red-400 font-medium">
+                ⚠️ Start point (A) must be before end point (B) to enable the loop.
+            </p>
+        </div>
+    )}
+</Card>
                 {/* --- FIN CONTRÔLES DE BOUCLE --- */}
 
                 {/* Liste des Faders de Pistes */}

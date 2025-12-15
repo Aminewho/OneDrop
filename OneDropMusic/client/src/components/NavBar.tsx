@@ -10,6 +10,8 @@ export default function NavBar() {
     { path: "/separator", label: "Separator", icon: Scissors },
     { path: "/library", label: "Library", icon: Library },
     { path: "/playlists", label: "Playlists", icon: ListMusic },
+    {   path: "/spotify-callback", label: "Spotify", icon: Music2 },
+    {    path: "/spotify-search", label: "Spotify", icon: Music2 },    
   ];
 
   return (

@@ -107,7 +107,7 @@ const initialContextValue: VideoStateContextType = {
 export const VideoStateContext = createContext<VideoStateContextType>(initialContextValue);
 
 // Constantes API (à déplacer dans un fichier config si le projet grandit)
-const API_BASE_URL = "http://localhost:8080";
+const API_BASE_URL = "http://127.0.0.1:8080";
 
 // --- HOOK UTILITAIRE ---
 export const useVideoState = (): VideoStateContextType => {
