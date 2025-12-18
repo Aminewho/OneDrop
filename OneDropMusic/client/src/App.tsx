@@ -4,7 +4,8 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-
+import { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 // Import du VideoStateProvider pour persister l'état
 // NOTE: L'extension de ce fichier pourrait être .jsx ou .tsx selon votre configuration
 import { VideoStateProvider } from "./context/VideoStateContext"; 
@@ -37,7 +38,24 @@ function Router() {
 }
 
 function App() {
-  
+ useEffect(() => {
+    // 1. On vérifie si on est sur l'IP 127.0.0.1
+    const isUsingIP = window.location.hostname === "127.0.0.1";
+    
+    // 2. On vérifie si on n'est PAS sur la page de callback de Spotify
+    // On utilise window.location.pathname (natif JS) au lieu du hook location.pathname
+    const isNotCallbackPage = !window.location.pathname.includes('/callback');
+
+    if (isUsingIP && isNotCallbackPage) {
+      console.log("Spotify Auth terminée. Bascule sur localhost pour YouTube...");
+      
+      // On remplace l'IP par localhost dans l'URL actuelle
+      const newUrl = window.location.href.replace("127.0.0.1", "localhost");
+      
+      // Redirection immédiate
+      window.location.replace(newUrl);
+    }
+  }, []);
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>

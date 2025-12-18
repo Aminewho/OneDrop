@@ -16,7 +16,7 @@ public class SecurityConfig {
     public UrlBasedCorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         // Use the exact origin
-        config.setAllowedOrigins(Collections.singletonList("http://127.0.0.1:5000")); 
+        config.setAllowedOrigins(Collections.singletonList("http://127.0.0.1:5000, http://localhost:5000")); 
         
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type"));
