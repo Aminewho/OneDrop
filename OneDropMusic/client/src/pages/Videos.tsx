@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "react-hot-toast"; // Assurez-vous d'avoir installé react-hot-toast
 
 // --- 1. CONSTANTES & TYPES ---
-const API_BASE_URL = "http://127.0.0.1:8080";
+const API_BASE_URL = "/spotify";
 
 // Clés Local Storage
 const LS_SEARCH_QUERY_KEY = 'videoSearchQuery_page';

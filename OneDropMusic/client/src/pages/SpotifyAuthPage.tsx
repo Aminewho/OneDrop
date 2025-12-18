@@ -9,7 +9,7 @@ import { toast } from "react-hot-toast";
 const CLIENT_ID = "b97d795e6dc744e493aa6d24169d125e"; 
 // The URI registered in your Spotify Developer Dashboard. Must match the app's running port.
 const REDIRECT_URI = "http://127.0.0.1:5000/spotify-callback"; 
-const SCOPES = "user-read-private user-read-email"; 
+const SCOPES = "user-read-private user-read-email playlist-read-private user-library-read user-follow-read user-top-read"; 
 
 // --- SPOTIFY ENDPOINTS ---
 const AUTH_URL = 'https://accounts.spotify.com/authorize'; // Correct Authorization endpoint
