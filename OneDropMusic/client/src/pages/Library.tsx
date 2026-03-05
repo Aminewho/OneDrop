@@ -27,7 +27,7 @@ interface LibraryTrack {
   status: string;
 }
 
-const API_BASE_URL = "http://localhost:8080";
+const API_BASE_URL = "http://localhost:8081";
 
 export default function Library() {
   const [searchQuery, setSearchQuery] = useState("");

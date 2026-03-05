@@ -8,14 +8,14 @@ app.use(express.urlencoded({ extended: false }));
 app.use(
   '/spotify',
   createProxyMiddleware({
-    // Target is your Spring backend running on port 8080
-    target: 'http://127.0.0.1:8080', 
+    // Target is your Spring backend running on port 8081
+    target: 'http://127.0.0.1:8081', 
     // Important for host headers in the proxy target
     changeOrigin: true, 
     // Optional: Log proxying activity
     logLevel: 'debug',
     // 🚨 Critical for mapping: If your Spring controller uses @RequestMapping("/spotify"),
-    // then the frontend calls /spotify/search, which maps to 127.0.0.1:8080/spotify/search.
+    // then the frontend calls /spotify/search, which maps to 127.0.0.1:8081/spotify/search.
     // If you need the path to be cleaned up, use pathRewrite, but we will assume no rewrite is needed initially.
   } as any)
 );
@@ -73,12 +73,8 @@ app.use((req, res, next) => {
   // Other ports are firewalled. Default to 5000 if not specified.
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
+const port = parseInt(process.env.PORT || '5001', 10); // Change 5000 en 5001 pour éviter le conflit Windows
+  server.listen(port, "127.0.0.1", () => {
     log(`serving on port ${port}`);
   });
 })();

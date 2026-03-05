@@ -20,15 +20,14 @@ public class SpotifyController {
      * @param authorizationHeader The "Bearer <token>" header passed from the frontend.
      * @return A ResponseEntity containing the Spotify API's status and JSON body.
      */
-    @GetMapping("/spotify-search") // Maps the method to /api/spotify-search
-    public ResponseEntity<String> searchSpotify(
-            @RequestParam String query,
-            // Use required = false to handle the case where the header might be missing 
-            // during initial setup/debug, then check for its presence manually.
-            @RequestHeader(name = "Authorization", required = false) String authorizationHeader) {
+   @GetMapping("/spotify-search")
+public ResponseEntity<String> search(
+    @RequestParam String query, 
+    @RequestHeader("Authorization") String auth
+) {
 
         // --- 1. Validation (Check for Token) ---
-        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
+        if (auth == null || !auth.startsWith("Bearer ")) {
             // If the token is missing or malformed, return 401 explicitly.
             // This is crucial for the frontend's token refresh logic.
             return ResponseEntity
@@ -39,7 +38,7 @@ public class SpotifyController {
         // --- 2. Call Service Proxy ---
         try {
             // Forward the validated request to the service layer for the external HTTP call
-            ResponseEntity<String> response = spotifyService.searchSpotifyCatalog(query, authorizationHeader);
+            ResponseEntity<String> response = spotifyService.searchSpotifyCatalog(query, auth);
             
             // The service handles passing back non-200 statuses (401, 404, etc.)
             return response;

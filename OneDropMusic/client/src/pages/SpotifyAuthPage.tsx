@@ -8,7 +8,7 @@ import { toast } from "react-hot-toast";
 // --- CONFIGURATION ---
 const CLIENT_ID = "b97d795e6dc744e493aa6d24169d125e"; 
 // L'URI de redirection doit correspondre EXACTEMENT à celle enregistrée dans le Dashboard Spotify
-const REDIRECT_URI = "http://127.0.0.1:5000/spotify-callback"; 
+const REDIRECT_URI = "http://127.0.0.1:5001/spotify-callback"; 
 const SCOPES = "user-read-private user-read-email playlist-read-private user-library-read user-follow-read user-top-read"; 
 
 const AUTH_URL = 'https://accounts.spotify.com/authorize'; 

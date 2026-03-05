@@ -2,6 +2,10 @@ package com.music.OneDrop.Service;
 
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.*;
@@ -25,12 +29,12 @@ public class SpotifyService {
     }
 
     public ResponseEntity<String> searchSpotifyCatalog(String query, String authorizationHeader) {
-        
+        String encodedQuery = URLEncoder.encode(query, StandardCharsets.UTF_8);
         // 1. Build the target URL (must include the correct path: /search)
-        UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(SPOTIFY_API_BASE + "/search")
-            .queryParam("q", query)
-            .queryParam("type", "track,artist,album") // Using all types for comprehensive search
-            .queryParam("limit", 10);
+        UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(SPOTIFY_API_V1 + "/search")
+            .queryParam("q", encodedQuery)
+            .queryParam("type", "track,artist") // Using all types for comprehensive search
+            .queryParam("limit",15 );
 
         // 2. Prepare the headers (forward the Authorization header from the client)
         HttpHeaders headers = new HttpHeaders();
@@ -43,13 +47,12 @@ public class SpotifyService {
         // 4. Make the server-to-server call to the API endpoint
         try {
             // This will throw HttpClientErrorException (for 4xx) or HttpServerErrorException (for 5xx)
-            ResponseEntity<String> spotifyResponse = restTemplate.exchange(
-                builder.toUriString(),
-                HttpMethod.GET,
-                entity,
-                String.class
-            );
-
+       ResponseEntity<String> spotifyResponse = restTemplate.exchange(
+        builder.build(true).toUriString(),
+        HttpMethod.GET,
+        entity,
+        String.class
+);
             // If successful (status 200), return the entire response
             return spotifyResponse;
             

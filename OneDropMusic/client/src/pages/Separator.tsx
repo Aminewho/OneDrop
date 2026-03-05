@@ -80,7 +80,7 @@ interface StemControl {
     hasLoadError: boolean;
 }
 
-const API_BASE_URL = "http://127.0.0.1:8080";
+const API_BASE_URL = "http://127.0.0.1:8081";
 
 // Helper pour formater le temps en MM:SS
 const formatTime = (seconds: number): string => {

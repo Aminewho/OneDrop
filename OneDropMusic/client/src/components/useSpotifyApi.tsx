@@ -3,10 +3,10 @@ import { toast } from 'react-hot-toast';
 
 // --- CONFIGURATION ---
 const CLIENT_ID = "b97d795e6dc744e493aa6d24169d125e"; 
-const REDIRECT_URI = "http://127.0.0.1:5000/spotify-callback"; 
+const REDIRECT_URI = "http://127.0.0.1:5001/spotify-callback"; 
 
 // --- ENDPOINTS ---
-// Backend proxy URL (Spring assumed to be on 8080, proxied via Vite/CORS setup)
+// Backend proxy URL (Spring assumed to be on 8081, proxied via Vite/CORS setup)
 const BACKEND_API_BASE_URL = '/spotify'; 
 // Use the placeholder for token refresh/exchange (Spotify standard token endpoint)
 const TOKEN_URL = 'https://accounts.spotify.com/api/token'; 
@@ -140,52 +140,57 @@ export const useSpotifyApi = () => {
     }, [refreshAccessToken]);
     
     // --- 3. SEARCH FUNCTIONALITY (Proxied via Spring Backend) ---
-    const searchSpotify = useCallback(async (query: string): Promise<SpotifySearchResults> => {
-        const defaultResults = { tracks: [], artists: [], albums: [] };
-        const token = await getValidAccessToken();
+ const searchSpotify = useCallback(async (query: string): Promise<SpotifySearchResults> => {
+    const defaultResults = { tracks: [], artists: [], albums: [] };
+    const token = await getValidAccessToken();
 
-        if (!token) {
-            toast.error("Not connected to Spotify. Please connect your account.");
-            return defaultResults;
+    if (!token) {
+        toast.error("Not connected to Spotify. Please connect your account.");
+        return defaultResults;
+    }
+
+    try {
+        // Mise à jour de l'URL pour inclure le paramètre 'type'
+        // Note : J'utilise 'type' ici pour correspondre à ton contrôleur Spring
+        const url = `${BACKEND_API_BASE_URL}/spotify-search?query=${encodeURIComponent(query)}`;
+        
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (response.status === 401) {
+             const newToken = await refreshAccessToken();
+             if(newToken) {
+                 // 🚨 N'oublie pas de repasser le 'type' dans l'appel récursif !
+                 return searchSpotify(query);
+             }
         }
 
-        try {
-            // Endpoint Spring: /spotify-search
-            const response = await fetch(`${BACKEND_API_BASE_URL}/spotify-search?query=${encodeURIComponent(query)}`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-            });
-
-            if (response.status === 401) {
-                 const newToken = await refreshAccessToken();
-                 if(newToken) {
-                     return searchSpotify(query);
-                 }
-            }
-
-            if (!response.ok) {
-                const errorBody = await response.text();
-                throw new Error(`Backend Proxy error: ${response.status} - ${errorBody}`);
-            }
-
-            const data = await response.json();
-            
-            return {
-                tracks: data.tracks?.items || [],
-                artists: data.artists?.items || [],
-                albums: data.albums?.items || [],
-            };
-
-        } catch (error) {
-            console.error("Proxied Spotify Search failed:", error);
-            toast.error("Proxied search failed. Check console for details.");
-            return defaultResults;
+        if (!response.ok) {
+            const errorBody = await response.text();
+            throw new Error(`Backend Proxy error: ${response.status} - ${errorBody}`);
         }
-    }, [getValidAccessToken, refreshAccessToken]);
-    
+
+        const data = await response.json();
+        
+        // On retourne les données. Spotify ne renverra que l'objet demandé 
+        // (soit 'tracks' soit 'artists') selon le type envoyé.
+        return {
+            tracks: data.tracks?.items || [],
+            artists: data.artists?.items || [],
+            albums: data.albums?.items || [],
+        };
+
+    } catch (error) {
+        console.error("Proxied Spotify Search failed:", error);
+        toast.error("Proxied search failed. Check console for details.");
+        return defaultResults;
+    }
+}, [getValidAccessToken, refreshAccessToken]);
     // --- 4. USER PROFILE (Proxied via Spring Backend) ---
     const getUserProfile = useCallback(async (): Promise<UserProfile> => {
         const accessToken = await getValidAccessToken(); 

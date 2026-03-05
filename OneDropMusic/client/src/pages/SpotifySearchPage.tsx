@@ -5,8 +5,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { 
-    Search, Zap, Music, ExternalLink, Loader2, User, TrendingUp, Users, 
-    PlayCircle, ArrowLeft, Disc, X, Calendar, Clock
+    Search, Zap, Music, Loader2, User, TrendingUp, Users, 
+    PlayCircle, Play, ArrowLeft, Disc, X, Calendar, Clock, Youtube
 } from 'lucide-react'; 
 import { 
     useSpotifyApi, 
@@ -28,7 +28,6 @@ interface SearchItem {
     uri: string; 
 }
 
-// Interface for Album Data based on your JSON
 interface AlbumData {
     id: string;
     name: string;
@@ -38,7 +37,6 @@ interface AlbumData {
     spotifyUrl: string;
 }
 
-// Interface for Album Track based on your JSON
 interface AlbumTrackData {
     id: string;
     name: string;
@@ -48,7 +46,20 @@ interface AlbumTrackData {
     spotifyUrl: string;
 }
 
+// Interface pour gérer l'état de la vidéo en cours de traitement
+interface ProcessingTrackState {
+    spotifyTrack: SearchItem;
+    youtubeId: string | null;
+    isSearchingYoutube: boolean;
+    isSendingToSpleeter: boolean;
+}
+type TaskStatus = 'PENDING' | 'DOWNLOADING' | 'SEPARATING' | 'FAILED' | 'COMPLETED' | 'UNKNOWN' | undefined;
 type ActiveTab = 'All' | 'Tracks' | 'Artists' | 'Albums';
+
+// --- Configuration ---
+// ⚠️ IMPORTANT : Remplacez ceci par votre clé API Google Cloud
+const YOUTUBE_API_KEY = "AIzaSyDEYDLuOqwcFQyomz8UwYTrMChjY_nSFks"; 
+const BACKEND_BASE_URL = "http://127.0.0.1:8080"; // Base URL de votre proxy/backend
 
 // --- Helpers ---
 
@@ -119,7 +130,8 @@ export default function SpotifySearchPage() {
     const [topArtists, setTopArtists] = useState<Artist[] | null>(null);
     const [followingArtists, setFollowingArtists] = useState<Artist[] | null>(null);
     const [isLoadingProfile, setIsLoadingProfile] = useState(true); 
-
+// Place this with your other useState hooks
+const [taskStatuses, setTaskStatuses] = useState<Record<string, TaskStatus>>({});
     // --- SEARCH STATES ---
     const [searchQuery, setSearchQuery] = useState('');
     const [isSearching, setIsSearching] = useState(false);
@@ -128,17 +140,18 @@ export default function SpotifySearchPage() {
         tracks: [], artists: [], albums: [],
     });
 
-    // --- ARTIST DETAIL STATES ---
+    // --- DETAIL VIEW STATES ---
     const [artistTracksView, setArtistTracksView] = useState<{ artistName: string, tracks: any[] } | null>(null);
     const [artistAlbums, setArtistAlbums] = useState<AlbumData[]>([]);
-    
-    // --- ALBUM DETAIL STATES ---
     const [selectedAlbum, setSelectedAlbum] = useState<{ details: AlbumData, tracks: AlbumTrackData[] } | null>(null);
     const [isLoadingAlbum, setIsLoadingAlbum] = useState(false);
 
+    // --- PROCESSING STATE (Youtube + Spleeter) ---
+    const [activeProcessingTrack, setActiveProcessingTrack] = useState<ProcessingTrackState | null>(null);
+
     const [, setLocation] = useLocation();
     
-    // Destructure new methods from the hook (ensure these are added to useSpotifyApi.ts)
+    // Hooks Spotify
     const { 
         isLoggedIn, 
         searchSpotify, 
@@ -146,11 +159,72 @@ export default function SpotifySearchPage() {
         getTopArtists, 
         getFollowingArtists,
         getArtistTopTracks,
-        getArtistAlbums, // Ensure this exists in hook
-        getAlbumTracks   // Ensure this exists in hook
+        getArtistAlbums, 
+        getAlbumTracks   
     } = useSpotifyApi();
+// --- Polling Logic ---
+const pollTaskStatus = useCallback(async (videoId: string, currentStatus: TaskStatus) => {
+    try {
+        // 1. Force cache busting with a timestamp
+        const url = `${BACKEND_BASE_URL}/api/audio/status?videoId=${encodeURIComponent(videoId)}&t=${Date.now()}`;
+        const response = await fetch(url);
+        
+        if (response.status === 404) return false;
 
+        // 2. Get raw text
+        const rawText = await response.text();
+        
+        // 3. Clean the string: Remove quotes, newlines (\n), and carriage returns (\r)
+        // Then convert to Uppercase to match your TaskStatus type
+        const status = rawText.trim().replace(/['"«»]/g, '').toUpperCase() as TaskStatus;
 
+        // Debugging: This will show you exactly what is happening in the console
+        console.log(`[POLL] ID: ${videoId} | Raw: "${rawText}" | Cleaned: ${status} | Local: ${currentStatus}`);
+
+        // 4. Update state only if it changed
+        if (status !== currentStatus) {
+          setTaskStatuses((prev: Record<string, TaskStatus>) => ({ ...prev, [videoId]: status }));
+            // Toast updates
+            if (status === 'SEPARATING') toast.loading('Separating stems...', { id: videoId });
+            else if (status === 'COMPLETED') toast.success('Ready!', { id: videoId });
+            else if (status === 'FAILED') toast.error('Process failed.', { id: videoId });
+        }
+        
+        return status === 'COMPLETED' || status === 'FAILED';
+    } catch (error) {
+        console.error("Polling error:", error);
+        return true; 
+    }
+}, []);
+
+// Automatically start polling when a task enters a processing state
+useEffect(() => {
+    // Identify which videos are currently in a "working" state
+    const activeTasks = Object.entries(taskStatuses).filter(([_, status]) =>
+        ['PENDING', 'DOWNLOADING', 'SEPARATING'].includes(status || '')
+    );
+
+    if (activeTasks.length === 0) return;
+
+    // Start the interval
+    const intervalId = setInterval(() => {
+        activeTasks.forEach(([videoId, status]) => {
+            pollTaskStatus(videoId, status as TaskStatus);
+        });
+    }, 3000); // 3 seconds is ideal for simple text backends
+
+    return () => clearInterval(intervalId);
+}, [taskStatuses, pollTaskStatus]);
+
+const CustomPlayButton = ({ onClick, className = "" }: { onClick: () => void, className?: string }) => (
+    <Button 
+        size="icon"
+        onClick={(e) => { e.stopPropagation(); onClick(); }}
+        className={`rounded-full h-10 w-10 bg-white hover:bg-white/90 shadow-md transition-transform hover:scale-110 active:scale-95 group ${className}`}
+    >
+        <Play className="h-5 w-5 fill-black text-black ml-0.5" />
+    </Button>
+);
     // --- 1. Load User Data ---
     useEffect(() => {
         if (!isLoggedIn) {
@@ -179,32 +253,116 @@ export default function SpotifySearchPage() {
     }, [isLoggedIn, getUserProfile, getTopArtists, getFollowingArtists]); 
 
 
-    // --- 2. Handle Artist Click (Fetch Top Tracks AND Albums) ---
+    // --- 2. Youtube Search Logic ---
+    const findYouTubeVideo = async (track: SearchItem) => {
+        if (!YOUTUBE_API_KEY) {
+            toast.error("API Key YouTube manquante dans le code !");
+            return null;
+        }
+
+        // Requête précise : Artiste + Titre + "official audio"
+        const query = encodeURIComponent(`${track.artists[0]?.name} ${track.name} `);
+        const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${query}&key=${YOUTUBE_API_KEY}&maxResults=1&type=video`;
+console.log("YouTube Search URL:", query);
+        try {
+            const response = await fetch(url);
+            const data = await response.json();
+            
+            if (data.items && data.items.length > 0) {
+                return data.items[0].id.videoId;
+            } else {
+                return null;
+            }
+        } catch (error) {
+            console.error("YouTube Search Error:", error);
+            return null;
+        }
+    };
+
+
+    // --- 3. Handle Process Click (Trigger Youtube Search) ---
+    const handleProcessTrack = async (trackItem: SearchItem) => {
+        // Scroll to top to see the player
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+
+        setActiveProcessingTrack({
+            spotifyTrack: trackItem,
+            youtubeId: null,
+            isSearchingYoutube: true,
+            isSendingToSpleeter: false
+        });
+
+        const videoId = await findYouTubeVideo(trackItem);
+        
+        if (videoId) {
+            setActiveProcessingTrack({
+                spotifyTrack: trackItem,
+                youtubeId: videoId,
+                isSearchingYoutube: false,
+                isSendingToSpleeter: false
+            });
+            toast.success("Vidéo YouTube correspondante trouvée !");
+        } else {
+            setActiveProcessingTrack(null);
+            toast.error("Impossible de trouver une vidéo correspondante sur YouTube.");
+        }
+    };
+
+    // --- 4. Execute Spleeter (Call Backend) ---
+    const executeSpleeter = async () => {
+    if (!activeProcessingTrack || !activeProcessingTrack.youtubeId) return;
+
+    const videoId = activeProcessingTrack.youtubeId;
+
+    setActiveProcessingTrack(prev => prev ? ({ ...prev, isSendingToSpleeter: true }) : null);
+    
+    // Set status to PENDING so the useEffect starts polling
+    setTaskStatuses(prev => ({ ...prev, [videoId]: 'PENDING' }));
+    
+    const toastId = toast.loading("Launching Spleeter...");
+
+    try {
+        const response = await fetch(`${BACKEND_BASE_URL}/api/audio/process`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                videoId: videoId,
+                videoTitle: activeProcessingTrack.spotifyTrack.name,
+                duration: "0" 
+            })
+        });
+
+        if (!response.ok) throw new Error("Server rejected request");
+
+        toast.success("Task queued successfully", { id: toastId });
+    } catch (error) {
+        setTaskStatuses(prev => ({ ...prev, [videoId]: 'FAILED' }));
+        toast.error("Failed to start spleeter", { id: toastId });
+    } finally {
+        setActiveProcessingTrack(prev => prev ? ({ ...prev, isSendingToSpleeter: false }) : null);
+    }
+};
+    // --- 5. Artist & Album Navigation ---
     const handleArtistClick = async (artistId: string, artistName: string) => {
         if (isSearching) return;
-        
         setIsSearching(true);
         setSearchResults({ tracks: [], artists: [], albums: [] });
         setSearchQuery('');
-        setSelectedAlbum(null); // Reset album view
+        setSelectedAlbum(null);
+        setActiveProcessingTrack(null); // Hide player on navigation
         
         try {
-            // Run both fetches in parallel for speed
             const [tracksData, albumsData] = await Promise.all([
                 getArtistTopTracks(artistId),
                 getArtistAlbums(artistId)
             ]);
             
-            // Set Top Tracks
             setArtistTracksView({ artistName, tracks: tracksData });
 
-            // Process and Set Albums
-            // The JSON structure for albums is nested in `items`
             if (albumsData && albumsData.items) {
                 const mappedAlbums: AlbumData[] = albumsData.items.map((album: any) => ({
                     id: album.id,
                     name: album.name,
-                    // Use medium image (1) or large (0)
                     image: album.images?.[1]?.url || album.images?.[0]?.url || '',
                     releaseDate: album.release_date,
                     totalTracks: album.total_tracks,
@@ -214,10 +372,7 @@ export default function SpotifySearchPage() {
             } else {
                 setArtistAlbums([]);
             }
-
             setActiveTab('Tracks');
-            toast.success(`Loaded data for ${artistName}`);
-
         } catch (error) {
             console.error(error);
             toast.error("Failed to load artist details");
@@ -226,12 +381,10 @@ export default function SpotifySearchPage() {
         }
     };
 
-    // --- 3. Handle Album Click (Fetch Album Tracks) ---
     const handleAlbumClick = async (album: AlbumData) => {
         setIsLoadingAlbum(true);
         try {
             const tracksData = await getAlbumTracks(album.id);
-            
             if (tracksData && tracksData.items) {
                 const mappedTracks: AlbumTrackData[] = tracksData.items.map((track: any) => ({
                     id: track.id,
@@ -241,11 +394,7 @@ export default function SpotifySearchPage() {
                     artists: track.artists,
                     spotifyUrl: track.external_urls.spotify
                 }));
-
-                setSelectedAlbum({
-                    details: album,
-                    tracks: mappedTracks
-                });
+                setSelectedAlbum({ details: album, tracks: mappedTracks });
             }
         } catch (error) {
             console.error(error);
@@ -255,11 +404,6 @@ export default function SpotifySearchPage() {
         }
     };
 
-    const closeAlbumModal = () => {
-        setSelectedAlbum(null);
-    };
-
-    // --- 4. Return to Search ---
     const handleReturnToSearch = () => {
         setArtistTracksView(null);
         setArtistAlbums([]);
@@ -267,9 +411,9 @@ export default function SpotifySearchPage() {
         setSearchQuery(''); 
         setSearchResults({ tracks: [], artists: [], albums: [] }); 
         setActiveTab('All');
+        setActiveProcessingTrack(null);
     }
 
-    // --- Search Helper ---
     const mapSpotifyItem = (item: any, type: 'track' | 'artist' | 'album'): SearchItem => {
         switch (type) {
             case 'track':
@@ -306,47 +450,165 @@ export default function SpotifySearchPage() {
         }
     };
     
-    // Standard Search
-    const handleSearch = useCallback(async (e?: React.FormEvent) => {
-        e?.preventDefault();
-        if (!searchQuery.trim() || !isLoggedIn) return;
+ const handleSearch = useCallback(async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!searchQuery.trim() || !isLoggedIn) return;
 
-        setIsSearching(true);
-        setArtistTracksView(null);
-        setArtistAlbums([]);
-        setSelectedAlbum(null);
-        setSearchResults({ tracks: [], artists: [], albums: [] });
-        setActiveTab('All'); 
+    setIsSearching(true);
+    // ... tes autres resets (setArtistTracksView, etc.)
+    setSearchResults({ tracks: [], artists: [], albums: [] });
+    setActiveTab('All'); 
 
-        try {
-            const results = await searchSpotify(searchQuery); 
-            setSearchResults(results);
-            const total = results.tracks.length + results.artists.length + results.albums.length;
-            if (total === 0) toast("No results found.", { icon: '🔍' });
-        } catch (error) {
-            console.error("Search failed:", error);
-        } finally {
-            setIsSearching(false);
-        }
-    }, [searchQuery, isLoggedIn, searchSpotify]);
+    try {
+        const results = await searchSpotify(searchQuery); 
+        
+        // --- LA LOGIQUE DE FILTRAGE ICI ---
+        const filteredResults = {
+            ...results,
+            // On ne garde que le premier artiste s'il existe
+            artists: results.artists && results.artists.length > 0 
+                ? [results.artists[0]] 
+                : [],
+            // On garde toutes les chansons (jusqu'à 15 selon ta config backend)
+            tracks: results.tracks || []
+        };
 
+        setSearchResults(filteredResults);
+        
+        const total = filteredResults.tracks.length + filteredResults.artists.length;
+        if (total === 0) toast("No results found.", { icon: '🔍' });
 
-    const handleProcessTrack = (trackItem: SearchItem) => {
-        console.log("Processing Track:", trackItem);
-        toast.success(`Processing track: ${trackItem.name}`);
-    };
+    } catch (error) {
+        console.error("Search failed:", error);
+        toast.error("An error occurred during search.");
+    } finally {
+        setIsSearching(false);
+    }
+}, [searchQuery, isLoggedIn, searchSpotify]);
 
     // --- RENDERERS ---
+
+  const renderProcessingSection = () => {
+    if (!activeProcessingTrack) return null;
+    // Get the status for the current video from your taskStatuses state
+    const currentStatus = activeProcessingTrack.youtubeId 
+        ? taskStatuses[activeProcessingTrack.youtubeId] 
+        : undefined;
+
+    // Determine if we are currently "busy"
+    const isWorking = activeProcessingTrack.isSendingToSpleeter || 
+        ['PENDING', 'DOWNLOADING', 'SEPARATING'].includes(currentStatus || '');
+    return (
+        /* Sticky container with z-index to stay above search results */
+        <div className="sticky top-4 z-40 mb-8 animate-in slide-in-from-top-4 duration-300">
+            <Card className="p-6 border-2 border-primary/20 bg-background/95 backdrop-blur-md shadow-2xl">
+                <div className="flex justify-between items-start mb-4">
+                    <div>
+                        <h3 className="text-xl font-bold flex items-center gap-2">
+                            <Zap className="text-yellow-500 fill-yellow-500" /> 
+                            Spleeter Workstation
+                        </h3>
+                        <p className="text-muted-foreground text-sm">
+                            Track: <span className="font-semibold text-foreground">{activeProcessingTrack.spotifyTrack.name}</span>
+                        </p>
+                    </div>
+                    <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => setActiveProcessingTrack(null)}
+                        className="rounded-full hover:bg-destructive/10 hover:text-destructive transition-colors"
+                    >
+                        <X className="w-5 h-5" />
+                    </Button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Left Column: YouTube Player with Auto-start */}
+                    <div className="aspect-video bg-black rounded-lg overflow-hidden shadow-lg border border-border">
+                        {activeProcessingTrack.isSearchingYoutube ? (
+                            <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground bg-muted/20">
+                                <Loader2 className="w-10 h-10 animate-spin mb-3 text-primary" />
+                                <p>Finding the best audio source...</p>
+                            </div>
+                        ) : activeProcessingTrack.youtubeId ? (
+                            <iframe
+                                width="100%"
+                                height="100%"
+                                src={`https://www.youtube.com/embed/${activeProcessingTrack.youtubeId}?autoplay=1`}
+                                title="YouTube video player"
+                                frameBorder="0"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowFullScreen
+                            ></iframe>
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center text-red-500">
+                                <X className="w-8 h-8 mr-2" /> Source not found
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Right Column: Spleeter Action & Help */}
+                    <div className="flex flex-col justify-center space-y-4">
+                        <div className="p-4 bg-accent/5 rounded-md border text-sm text-muted-foreground shadow-sm">
+                            <h4 className="font-semibold text-foreground mb-1 flex items-center">
+                                <Youtube className="w-4 h-4 mr-2 text-red-500"/> 
+                                Audio Source Detected
+                            </h4>
+                            <p className="mb-3">
+                                Click below to start extracting audio stems (Vocals, Drums, Bass...).
+                            </p>
+                            <div className="pt-2 border-t border-border/50 italic text-[11px]">
+                                💡 If this version doesn't satisfy you, try using the <strong>YouTube Search</strong> tab for more options.
+                            </div>
+                        </div>
+                        
+                        <Button 
+                            className={`w-full h-16 text-lg font-bold shadow-lg transition-all transform hover:scale-[1.01] active:scale-95 ${
+                                currentStatus === 'COMPLETED' 
+                                ? "bg-blue-600 hover:bg-blue-700" 
+                                : "bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                            }`}
+                            disabled={activeProcessingTrack.isSearchingYoutube || isWorking || !activeProcessingTrack.youtubeId}
+                            onClick={executeSpleeter}
+                        >
+                            {isWorking ? (
+                                <>
+                                    <Loader2 className="mr-3 h-6 w-6 animate-spin" />
+                                    {currentStatus === 'SEPARATING' ? 'SEPARATING STEMS...' : 
+                                    currentStatus === 'DOWNLOADING' ? 'DOWNLOADING AUDIO...' : 'STARTING...'}
+                                </>
+                            ) : currentStatus === 'COMPLETED' ? (
+                                <>
+                                    <Music className="mr-3 h-6 w-6" />
+                                    SEPARATION COMPLETE!
+                                </>
+                            ) : currentStatus === 'FAILED' ? (
+                                <>
+                                    <Zap className="mr-3 h-6 w-6 fill-white" />
+                                    RETRY SPLEETER
+                                </>
+                            ) : (
+                                <>
+                                    <Zap className="mr-3 h-6 w-6 fill-white" />
+                                    EXECUTE SPLEETER
+                                </>
+                            )}
+                        </Button>
+                    </div>
+                </div>
+            </Card>
+        </div>
+    );
+};
 
     const renderSearchResults = () => {
         let itemsToDisplay: SearchItem[] = [];
 
-        // If generic search results
         if (activeTab === 'All') {
             const tracks = searchResults.tracks.map(t => mapSpotifyItem(t, 'track'));
             const artists = searchResults.artists.map(a => mapSpotifyItem(a, 'artist'));
             const albums = searchResults.albums.map(a => mapSpotifyItem(a, 'album'));
-            itemsToDisplay = [...tracks, ...artists, ...albums]; 
+            itemsToDisplay = [...artists, ...tracks, ...albums]; 
         } else if (activeTab === 'Tracks') {
             itemsToDisplay = searchResults.tracks.map(t => mapSpotifyItem(t, 'track'));
         } else if (activeTab === 'Artists') {
@@ -386,9 +648,25 @@ export default function SpotifySearchPage() {
                                 <h3 className="font-medium truncate">{item.name}</h3>
                                 <p className="text-sm text-muted-foreground truncate">{item.description}</p>
                             </div>
+                            
+                            {/* Actions Buttons */}
                             {item.type === 'artist' && (
                                 <Button size="sm" variant="outline" onClick={() => handleArtistClick(item.id, item.name)}>
                                     View Artist
+                                </Button>
+                            )}
+                            {item.type === 'track' && (
+                             <Button 
+    size="icon" // Utilise "icon" pour un bouton parfaitement carré/rond
+    onClick={() => handleProcessTrack(item)} 
+    className="bg-primary/90 hover:bg-primary text-primary-foreground rounded-full h-10 w-10 shrink-0 shadow-sm transition-transform hover:scale-110 active:scale-95"
+    title="Play and Process"
+>
+</Button>
+                            )}
+                             {item.type === 'album' && (
+                                <Button size="sm" variant="ghost" disabled>
+                                    Album
                                 </Button>
                             )}
                         </div>
@@ -403,7 +681,6 @@ export default function SpotifySearchPage() {
 
         return (
             <div className="space-y-8 animate-in fade-in duration-500">
-                {/* 1. Top Tracks Section */}
                 <section>
                     <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
                         <TrendingUp className="w-5 h-5 text-primary" />
@@ -422,9 +699,10 @@ export default function SpotifySearchPage() {
                                             <div className="font-medium truncate">{item.name}</div>
                                             <div className="text-xs text-muted-foreground">{item.description}</div>
                                         </div>
-                                        <Button size="sm" onClick={() => handleProcessTrack(item)} className="bg-green-600 hover:bg-green-700 h-8">
-                                            Process
-                                        </Button>
+                                        <Card key={item.id} className="p-3 flex items-center gap-4 hover:bg-accent/5">
+                                            {/* ... image et infos ... */}
+                                            <CustomPlayButton onClick={() => handleProcessTrack(item)} />
+                                        </Card>
                                     </div>
                                 </Card>
                             )
@@ -432,7 +710,6 @@ export default function SpotifySearchPage() {
                     </div>
                 </section>
 
-                {/* 2. Albums Section (Grid) */}
                 <section>
                     <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
                         <Disc className="w-5 h-5 text-primary" />
@@ -448,7 +725,6 @@ export default function SpotifySearchPage() {
                                     onClick={() => handleAlbumClick(album)}
                                     className="group cursor-pointer space-y-2"
                                 >
-                                    {/* Album Cover */}
                                     <div className="relative aspect-square bg-muted rounded-md overflow-hidden shadow-sm transition-all group-hover:shadow-md group-hover:scale-105">
                                         {album.image ? (
                                             <img src={album.image} alt={album.name} className="w-full h-full object-cover" />
@@ -457,7 +733,6 @@ export default function SpotifySearchPage() {
                                                 <Disc className="w-12 h-12 text-muted-foreground" />
                                             </div>
                                         )}
-                                        {/* Overlay Icon */}
                                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                             {isLoadingAlbum ? (
                                                 <Loader2 className="w-8 h-8 text-white animate-spin" />
@@ -468,7 +743,6 @@ export default function SpotifySearchPage() {
                                             )}
                                         </div>
                                     </div>
-                                    {/* Album Info */}
                                     <div>
                                         <h4 className="font-semibold text-sm truncate" title={album.name}>{album.name}</h4>
                                         <div className="text-xs text-muted-foreground flex items-center gap-2">
@@ -494,11 +768,10 @@ export default function SpotifySearchPage() {
     return (
         <div className="container mx-auto p-4 max-w-4xl relative">
             
-            {/* --- ALBUM MODAL / OVERLAY --- */}
+            {/* --- ALBUM MODAL --- */}
             {selectedAlbum && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
                     <Card className="w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col bg-background border-border shadow-2xl">
-                        {/* Header */}
                         <div className="p-4 border-b flex items-start gap-4 bg-muted/30">
                             <div className="w-24 h-24 rounded-md overflow-hidden shadow-md flex-shrink-0">
                                 <img src={selectedAlbum.details.image} alt={selectedAlbum.details.name} className="w-full h-full object-cover" />
@@ -511,12 +784,11 @@ export default function SpotifySearchPage() {
                                     <Music className="w-3 h-3" /> {selectedAlbum.details.totalTracks} tracks
                                 </p>
                             </div>
-                            <Button variant="ghost" size="icon" onClick={closeAlbumModal}>
+                            <Button variant="ghost" size="icon" onClick={() => setSelectedAlbum(null)}>
                                 <X className="w-6 h-6" />
                             </Button>
                         </div>
 
-                        {/* Tracks List */}
                         <div className="overflow-y-auto p-2 flex-1 custom-scrollbar">
                             {selectedAlbum.tracks.length === 0 ? (
                                 <div className="p-8 text-center text-muted-foreground">No tracks found.</div>
@@ -543,19 +815,22 @@ export default function SpotifySearchPage() {
                                                 <td className="p-2 text-right text-muted-foreground font-mono">
                                                     {formatDuration(track.durationMs)}
                                                 </td>
+                                               
                                                 <td className="p-2 text-right">
-                                                    <Button 
-                                                        size="sm" 
-                                                        variant="ghost"
+                                                    <CustomPlayButton 
+                                                        className="h-8 w-8 opacity-0 group-hover:opacity-100" 
                                                         onClick={() => handleProcessTrack({
-                                                            id: track.id, type: 'track', name: track.name,
-                                                            description: '', image_url: selectedAlbum.details.image,
-                                                            external_url: track.spotifyUrl, artists: [], uri: ''
-                                                        } as SearchItem)}
-                                                        className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity bg-green-100 text-green-700 hover:bg-green-200"
-                                                    >
-                                                        <Zap className="w-4 h-4" />
-                                                    </Button>
+                                                            id: track.id, 
+                                                            type: 'track', 
+                                                            name: track.name, 
+                                                            image_url: selectedAlbum.details.image,
+                                                            // Correction : On passe les vrais artistes au lieu de []
+                                                            artists: track.artists.map((a: any) => ({ id: a.id || '0', name: a.name })), 
+                                                            description: '', 
+                                                            external_url: track.spotifyUrl, 
+                                                            uri: ''
+                                                        } as SearchItem)} 
+                                                    />
                                                 </td>
                                             </tr>
                                         ))}
@@ -568,7 +843,7 @@ export default function SpotifySearchPage() {
             )}
 
 
-            {/* --- CONNECTION STATUS BAR --- */}
+            {/* --- CONNECTION STATUS --- */}
             {!isLoggedIn && (
                 <Card className="p-4 border-l-4 border-red-500 bg-red-900/10 mb-6 flex items-center justify-between">
                     <div className="flex items-center space-x-3">
@@ -601,12 +876,12 @@ export default function SpotifySearchPage() {
                 </Button>
             </form>
 
+            {/* --- NEW: VIDEO PLAYER & PROCESSING --- */}
+            {renderProcessingSection()}
 
             {/* --- DEFAULT VIEW (Profile) --- */}
             {renderUserProfile()}
 
-          
-            
             {/* --- RESULTS SECTION --- */}
             {(shouldShowResultsSection || artistTracksView) && (
                 <section>
@@ -615,7 +890,6 @@ export default function SpotifySearchPage() {
                            {artistTracksView ? `Artist: ${artistTracksView.artistName}` : "Search Results"}
                         </h2>
                         
-                        {/* --- BACK BUTTON --- */}
                         {artistTracksView !== null && (
                             <Button 
                                 onClick={handleReturnToSearch} 
@@ -629,32 +903,21 @@ export default function SpotifySearchPage() {
                         )}
                     </div>
                     
-                    {/* --- TAB NAVIGATION (Only for Search) --- */}
                     {!artistTracksView && (
                         <div className="flex flex-wrap gap-2 border-b pb-2 mb-4">
-                            {['All', 'Tracks', 'Artists', 'Albums'].map(tab => (
-                                <Button 
-                                    key={tab}
-                                    variant={activeTab === tab ? "default" : "ghost"}
-                                    onClick={() => setActiveTab(tab as ActiveTab)}
-                                    disabled={isSearching}
-                                >
-                                    {tab} ({searchResults[tab.toLowerCase() as keyof SpotifySearchResults]?.length || 0})
-                                </Button>
-                            ))}
+                           
                         </div>
                     )}
                     
-                    {/* RENDER CONTENT */}
                     {artistTracksView ? renderArtistDetailView() : renderSearchResults()}
                 </section>
             )}
         </div>
     );
 
-    // --- USER PROFILE DISPLAY HELPER ---
+    // --- USER PROFILE HELPER ---
     function renderUserProfile() {
-        if (!isLoggedIn || artistTracksView || searchQuery.length > 0) return null; 
+        if (!isLoggedIn || artistTracksView || searchQuery.length > 0 || activeProcessingTrack) return null; 
 
         if (isLoadingProfile) {
             return (
