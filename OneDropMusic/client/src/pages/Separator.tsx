@@ -1,15 +1,15 @@
 import { useState, useEffect, useRef, useCallback, ReactNode } from "react";
 import { useLocation } from "wouter";
-import { Loader2, Music, Zap, Volume2, HardHat, Disc3, Aperture, ArrowLeft, Play, Pause, X, ArrowRight, Repeat2 } from "lucide-react";
+import { Loader2, Music, Zap, Volume2, Disc3, Aperture, ArrowLeft, Play, Pause, X, ArrowRight, Repeat2, ChevronUp, ChevronDown, RotateCcw } from "lucide-react";
 
-// --- Mock Components (using standard Tailwind styling) ---
+// --- Mock Components ---
 
 interface CardProps {
     children?: ReactNode;
     className?: string;
 }
 const Card = ({ children, className }: CardProps) => (
-    <div className={`rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-lg ${className}`}>
+    <div className={`rounded-2xl border border-white/5 bg-[#141416] text-gray-100 shadow-2xl ${className}`}>
         {children}
     </div>
 );
@@ -18,40 +18,40 @@ interface ButtonProps {
     children?: ReactNode;
     onClick?: (e?: React.MouseEvent<HTMLButtonElement>) => void;
     className?: string;
-    variant?: 'default' | 'outline' | 'secondary' | 'danger' | string;
+    variant?: 'default' | 'outline' | 'secondary' | 'danger' | 'ghost' | string;
     disabled?: boolean;
-    size?: 'default' | 'icon' | string;
+    size?: 'default' | 'icon' | 'sm' | string;
 }
 
 const Button = ({ children, onClick, className, variant = "default", disabled = false, size = "default" }: ButtonProps) => {
-    let baseStyles = "inline-flex items-center justify-center rounded-lg text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500";
-    let sizeStyles = size === 'icon' ? 'h-10 w-10 p-2' : 'h-10 px-4 py-2';
-    
-    // Default Tailwind color mapping
+    let baseStyles = "inline-flex items-center justify-center rounded-xl text-sm font-medium transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500/50 active:scale-95";
+    let sizeStyles = size === 'icon' ? 'h-10 w-10 p-2' : size === 'sm' ? 'h-8 px-3 py-1 text-xs' : 'h-10 px-4 py-2';
+
     let variantStyles = '';
     switch (variant) {
         case 'default':
-            variantStyles = 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800';
+            variantStyles = 'bg-amber-500 text-black hover:bg-amber-400 font-semibold shadow-lg shadow-amber-500/20';
             break;
         case 'outline':
-            variantStyles = 'bg-transparent border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700';
+            variantStyles = 'bg-transparent border border-white/10 text-gray-300 hover:bg-white/5 hover:border-white/20';
             break;
         case 'secondary':
-            variantStyles = 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600';
+            variantStyles = 'bg-white/5 text-gray-200 hover:bg-white/10 border border-white/5';
             break;
         case 'danger':
-            variantStyles = 'bg-red-600 text-white hover:bg-red-700 active:bg-red-800';
+            variantStyles = 'bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/30';
+            break;
+        case 'ghost':
+            variantStyles = 'bg-transparent text-gray-400 hover:text-white hover:bg-white/5';
             break;
         default:
-            variantStyles = 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800';
+            variantStyles = 'bg-amber-500 text-black hover:bg-amber-400 font-semibold';
     }
-
-    const finalStyles = `${baseStyles} ${sizeStyles} ${variantStyles} ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className}`;
 
     return (
         <button
             onClick={onClick}
-            className={finalStyles}
+            className={`${baseStyles} ${sizeStyles} ${variantStyles} ${disabled ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''} ${className}`}
             disabled={disabled}
         >
             {children}
@@ -67,22 +67,20 @@ interface StudioData {
     stemNames: string[];
 }
 
-// État du contrôle d'un stem, incluant les nœuds Web Audio
 interface StemControl {
     name: string;
     volume: number;
     isMuted: boolean;
     isPlaying: boolean;
-    audioUrl: string; 
+    audioUrl: string;
     buffer: AudioBuffer | null;
-    gainNode: GainNode | null; 
+    gainNode: GainNode | null;
     sourceNode: AudioBufferSourceNode | null;
     hasLoadError: boolean;
 }
 
 const API_BASE_URL = "http://127.0.0.1:8081";
 
-// Helper pour formater le temps en MM:SS
 const formatTime = (seconds: number): string => {
     if (isNaN(seconds) || seconds < 0) return "0:00";
     const minutes = Math.floor(seconds / 60);
@@ -90,136 +88,129 @@ const formatTime = (seconds: number): string => {
     return `${minutes}:${remainingSeconds.toFixed(0).padStart(2, '0')}`;
 };
 
-// Helper pour obtenir l'URL audio
 const getStemAudioUrl = (videoId: string, stemName: string): string => {
     return `${API_BASE_URL}/api/audio/serve/track?videoId=${videoId}&trackName=${stemName}`;
 };
 
+// Stem color config
+const STEM_CONFIG: Record<string, { color: string; bg: string; icon: ReactNode; label: string }> = {
+    vocals:  { color: '#f87171', bg: 'rgba(248,113,113,0.08)', icon: <Music  className="w-4 h-4" />, label: 'Vocals'  },
+    drums:   { color: '#60a5fa', bg: 'rgba(96,165,250,0.08)',  icon: <Disc3  className="w-4 h-4" />, label: 'Drums'   },
+    drum:    { color: '#60a5fa', bg: 'rgba(96,165,250,0.08)',  icon: <Disc3  className="w-4 h-4" />, label: 'Drums'   },
+    bass:    { color: '#34d399', bg: 'rgba(52,211,153,0.08)',  icon: <Aperture className="w-4 h-4" />, label: 'Bass' },
+    other:   { color: '#fbbf24', bg: 'rgba(251,191,36,0.08)',  icon: <Zap    className="w-4 h-4" />, label: 'Other'   },
+};
 
-// --- COMPONENT PRINCIPAL ---
+const getStemConfig = (name: string) =>
+    STEM_CONFIG[name.toLowerCase()] ?? STEM_CONFIG['other'];
+
+
+// --- MAIN COMPONENT ---
 
 export default function Separator() {
     const [, setLocation] = useLocation();
     const [studioData, setStudioData] = useState<StudioData | null>(null);
     const [stems, setStems] = useState<StemControl[]>([]);
     const [isInitializing, setIsInitializing] = useState(true);
-    const [isAudioReady, setIsAudioReady] = useState(false); 
+    const [isAudioReady, setIsAudioReady] = useState(false);
     const [isAllPlaying, setIsAllPlaying] = useState(false);
 
-    const [maxDuration, setMaxDuration] = useState(0); 
-    const [playbackTime, setPlaybackTime] = useState(0); 
+    const [maxDuration, setMaxDuration] = useState(0);
+    const [playbackTime, setPlaybackTime] = useState(0);
 
-    const [loopStart, setLoopStart] = useState(0.01); 
-    const [loopEnd, setLoopEnd] = useState(0);     
-    const [isLooping, setIsLooping] = useState(false); 
+    const [loopStart, setLoopStart] = useState(0.01);
+    const [loopEnd, setLoopEnd] = useState(0);
+    const [isLooping, setIsLooping] = useState(false);
+
+    // Tempo: percentage 50–200, default 100
+    const [tempo, setTempo] = useState(100);
 
     const audioContextRef = useRef<AudioContext | null>(null);
     const playbackStartTimeRef = useRef<number | null>(null);
-    const playbackPositionRef = useRef(0); 
-    
+    const playbackPositionRef = useRef(0);
+
     const seekBarRef = useRef<HTMLDivElement>(null);
     const isDraggingRef = useRef<'start' | 'end' | null>(null);
 
-
-    // Fonction utilitaire pour décoder l'audio
     const loadAndDecodeAudio = async (url: string, context: AudioContext): Promise<AudioBuffer> => {
         const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const arrayBuffer = await response.arrayBuffer();
         return await context.decodeAudioData(arrayBuffer);
     };
 
-    // Fonction pour créer un nouveau SourceNode et démarrer la lecture
-    // isLoopingProp, loopStartProp, loopEndProp sont passés pour garantir l'utilisation des valeurs les plus récentes
     const createAndStartSource = useCallback((
-        stem: StemControl, 
-        context: AudioContext, 
-        offset = 0, 
-        isLoopingProp: boolean, 
-        loopStartProp: number, 
-        loopEndProp: number
+        stem: StemControl,
+        context: AudioContext,
+        offset = 0,
+        isLoopingProp: boolean,
+        loopStartProp: number,
+        loopEndProp: number,
+        tempoProp: number
     ): AudioBufferSourceNode => {
         if (!stem.buffer || !stem.gainNode) throw new Error("Audio nodes not ready.");
-        
+
         const source = context.createBufferSource();
         source.buffer = stem.buffer;
+        source.playbackRate.value = tempoProp / 100;
 
         let actualOffset = offset;
-        
-        // Utiliser la propriété de boucle passée
+
         if (isLoopingProp && loopEndProp > loopStartProp) {
-            source.loop = true; 
-            source.loopStart = loopStartProp; 
-            source.loopEnd = loopEndProp;     
-            
-            // Si l'offset est hors des bornes A-B, on le remet au début de la boucle
+            source.loop = true;
+            source.loopStart = loopStartProp;
+            source.loopEnd = loopEndProp;
             if (actualOffset < loopStartProp || actualOffset >= loopEndProp) {
-                actualOffset = loopStartProp; 
+                actualOffset = loopStartProp;
             }
         } else {
-            // Boucle désactivée (ou bornes invalides)
             source.loop = false;
-            
-            // S'assurer que l'offset est modulo la durée totale si > 0
             if (stem.buffer.duration > 0) {
-                 actualOffset %= stem.buffer.duration;
+                actualOffset %= stem.buffer.duration;
             } else {
-                 actualOffset = 0;
+                actualOffset = 0;
             }
         }
-        
-        source.connect(stem.gainNode);
-        
-        const scheduledTime = context.currentTime + 0.05; 
-        source.start(scheduledTime, actualOffset); 
-        
-        return source;
-    }, []); 
 
-    // 1. Initialisation de l'AudioContext et Chargement des buffers
+        source.connect(stem.gainNode);
+        const scheduledTime = context.currentTime + 0.05;
+        source.start(scheduledTime, actualOffset);
+
+        return source;
+    }, []);
+
+    // 1. Init AudioContext + load buffers
     useEffect(() => {
         const dataString = localStorage.getItem('currentStudioData');
         if (!dataString) {
-            try {
-                setLocation('/library');
-            } catch (e) {
-                console.error("Failed to navigate using setLocation:", e);
-            }
+            try { setLocation('/library'); } catch (e) { console.error(e); }
             return;
         }
 
         const data: StudioData = JSON.parse(dataString);
         setStudioData(data);
-        
+
         if (!audioContextRef.current) {
             audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
             if (audioContextRef.current.state === 'suspended') {
-                audioContextRef.current.resume().catch(e => console.error("Error resuming AudioContext:", e));
+                audioContextRef.current.resume().catch(console.error);
             }
         }
         const context = audioContextRef.current;
 
         const initialStems: StemControl[] = data.stemNames.map(name => ({
-            name,
-            volume: 0.8, 
-            isMuted: false,
-            isPlaying: false,
+            name, volume: 0.8, isMuted: false, isPlaying: false,
             audioUrl: getStemAudioUrl(data.videoId, name),
-            buffer: null,
-            gainNode: null,
-            sourceNode: null,
-            hasLoadError: false,
+            buffer: null, gainNode: null, sourceNode: null, hasLoadError: false,
         }));
         setStems(initialStems);
-        
+
         const loadAllStems = async () => {
             const newStems = [...initialStems];
             let hasError = false;
             let maxDurationFound = 0;
 
-            const loadPromises = newStems.map(async (stem, i) => {
+            await Promise.all(newStems.map(async (stem, i) => {
                 const gainNode = context.createGain();
                 gainNode.gain.value = stem.volume;
                 gainNode.connect(context.destination);
@@ -228,26 +219,21 @@ export default function Separator() {
                 try {
                     const buffer = await loadAndDecodeAudio(stem.audioUrl, context);
                     newStems[i].buffer = buffer;
-                    if (buffer.duration > maxDurationFound) {
-                        maxDurationFound = buffer.duration;
-                    }
+                    if (buffer.duration > maxDurationFound) maxDurationFound = buffer.duration;
                 } catch (e) {
-                    console.error(`Error loading/decoding audio for stem ${stem.name}:`, e);
+                    console.error(`Error loading stem ${stem.name}:`, e);
                     newStems[i].hasLoadError = true;
                     hasError = true;
                 }
-            });
-
-            await Promise.all(loadPromises);
+            }));
 
             setStems(newStems);
             setIsInitializing(false);
-            
+
             if (!hasError) {
                 setIsAudioReady(true);
                 setMaxDuration(maxDurationFound);
-                // Initialise la fin de boucle à la durée maximale
-                setLoopEnd(maxDurationFound); 
+                setLoopEnd(maxDurationFound);
             } else {
                 setIsAudioReady(false);
             }
@@ -256,387 +242,204 @@ export default function Separator() {
         loadAllStems();
 
         return () => {
-            // Nettoyage des sourceNodes lors du démontage du composant
             setStems(prevStems => prevStems.map(stem => {
                 if (stem.sourceNode) {
-                    try {
-                        stem.sourceNode.stop(context.currentTime + 0.01); 
-                    } catch (e) { /* ignore */ }
+                    try { stem.sourceNode.stop(context.currentTime + 0.01); } catch (e) {}
                 }
                 return { ...stem, sourceNode: null, isPlaying: false };
             }));
-
             if (context && context.state !== 'closed') {
-                context.suspend().catch(e => console.error("Error suspending AudioContext:", e));
+                context.suspend().catch(console.error);
             }
         };
-    }, [setLocation]); 
-    
-    // 2. Logique de suivi du temps (requestAnimationFrame)
+    }, [setLocation]);
+
+    // 2. Time tracking (rAF)
     useEffect(() => {
         let animationFrameId: number | null = null;
-
         const context = audioContextRef.current;
-        
+
         const updateTime = () => {
             if (context && playbackStartTimeRef.current !== null) {
-                const timeElapsedSinceStart = context.currentTime - playbackStartTimeRef.current;
-                
-                let currentTotalTime = playbackPositionRef.current + timeElapsedSinceStart;
-                
-                // --- LOGIQUE DE BOUCLAGE VISUEL A-B ---
+                const elapsed = context.currentTime - playbackStartTimeRef.current;
+                let currentTotalTime = playbackPositionRef.current + elapsed * (tempo / 100);
+
                 if (isLooping && loopEnd > loopStart) {
                     if (currentTotalTime >= loopEnd) {
                         const loopLength = loopEnd - loopStart;
-                        const overshoot = currentTotalTime - loopEnd;
-                        currentTotalTime = loopStart + (overshoot % loopLength);
+                        currentTotalTime = loopStart + ((currentTotalTime - loopEnd) % loopLength);
                     }
-                    if (currentTotalTime < loopStart) {
-                        currentTotalTime = loopStart;
-                    }
-
-                } else if (maxDuration > 0) {
-                    // Boucle complète standard si A-B looping est désactivé
-                    if (currentTotalTime >= maxDuration) {
-                        currentTotalTime = currentTotalTime % maxDuration; 
-                    }
+                    if (currentTotalTime < loopStart) currentTotalTime = loopStart;
+                } else if (maxDuration > 0 && currentTotalTime >= maxDuration) {
+                    currentTotalTime = currentTotalTime % maxDuration;
                 }
-                // --- FIN LOGIQUE ---
-                
                 setPlaybackTime(currentTotalTime);
             }
             animationFrameId = requestAnimationFrame(updateTime);
         };
-        
+
         if (isAllPlaying) {
-            let animationFrameId = requestAnimationFrame(updateTime);
-        } else {
-            if (animationFrameId !== null) {
-                cancelAnimationFrame(animationFrameId);
-                animationFrameId = null;
-            }
+            animationFrameId = requestAnimationFrame(updateTime);
         }
 
         return () => {
-            if (animationFrameId !== null) {
-                cancelAnimationFrame(animationFrameId);
-                animationFrameId = null;
-            }
+            if (animationFrameId !== null) cancelAnimationFrame(animationFrameId);
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isAllPlaying, maxDuration, isLooping, loopStart, loopEnd]); 
+    }, [isAllPlaying, maxDuration, isLooping, loopStart, loopEnd, tempo]);
 
-
-    // 3. Gestion de la Lecture/Pause et de la Synchro
+    // 3. Play / Pause
     const toggleAllPlayback = useCallback(() => {
         if (!isAudioReady || !audioContextRef.current) return;
         const context = audioContextRef.current;
-        
         const shouldPlay = !isAllPlaying;
 
         if (shouldPlay) {
-            // --- DÉMARRER / REPRENDRE ---
-            
             if (context.state !== 'running') {
-                context.resume().catch(e => {
-                    console.error("Failed to resume AudioContext:", e);
-                    return;
-                });
+                context.resume().catch(console.error);
             }
 
-            let actualOffset = playbackPositionRef.current; 
-            
-            // Important: utiliser l'état de looping actuel pour le démarrage
-            const currentLoopState = isLooping; 
+            let actualOffset = playbackPositionRef.current;
+            const currentLoopState = isLooping;
             const currentLoopStart = loopStart;
             const currentLoopEnd = loopEnd;
-            
+            const currentTempo = tempo;
+
             if (currentLoopState && currentLoopEnd > currentLoopStart) {
-                if (actualOffset < currentLoopStart || actualOffset >= currentLoopEnd) {
-                    actualOffset = currentLoopStart; 
-                }
+                if (actualOffset < currentLoopStart || actualOffset >= currentLoopEnd) actualOffset = currentLoopStart;
             } else if (maxDuration > 0) {
                 actualOffset %= maxDuration;
             }
 
-            const scheduledTime = context.currentTime + 0.05; 
-            playbackStartTimeRef.current = scheduledTime; 
+            const scheduledTime = context.currentTime + 0.05;
+            playbackStartTimeRef.current = scheduledTime;
 
             setStems(prevStems => prevStems.map(stem => {
-                if (stem.hasLoadError || !stem.buffer || !stem.gainNode) return stem; 
-
+                if (stem.hasLoadError || !stem.buffer || !stem.gainNode) return stem;
                 try {
                     if (stem.sourceNode) {
-                        try {
-                            // Arrêter l'ancienne source si elle existe
-                            stem.sourceNode.stop(0); 
-                        } catch (e) { /* ignore */ }
+                        try { stem.sourceNode.stop(0); } catch (e) {}
                     }
-                    
-                    // Créer et démarrer la nouvelle source avec l'état actuel
-                    const newSourceNode = createAndStartSource(
-                        stem, context, actualOffset, 
-                        currentLoopState, currentLoopStart, currentLoopEnd
-                    );
-                    
-                    return { ...stem, isPlaying: true, sourceNode: newSourceNode };
+                    const newSource = createAndStartSource(stem, context, actualOffset, currentLoopState, currentLoopStart, currentLoopEnd, currentTempo);
+                    return { ...stem, isPlaying: true, sourceNode: newSource };
                 } catch (e) {
                     console.error(`Failed to start stem ${stem.name}:`, e);
                     return { ...stem, isPlaying: false };
                 }
             }));
-
         } else {
-            // --- PAUSE ---
-            
             if (playbackStartTimeRef.current !== null && context) {
-                const timeElapsedSinceStart = context.currentTime - playbackStartTimeRef.current;
-                
-                let newPosition = playbackPositionRef.current + timeElapsedSinceStart;
-                
-                // Appliquer la logique de bouclage A-B pour capturer la position précise
-                if (isLooping && loopEnd > loopStart) {
-                    if (newPosition >= loopEnd) {
-                        const loopLength = loopEnd - loopStart;
-                        const overshoot = newPosition - loopEnd;
-                        newPosition = loopStart + (overshoot % loopLength);
-                    }
+                const elapsed = context.currentTime - playbackStartTimeRef.current;
+                let newPosition = playbackPositionRef.current + elapsed * (tempo / 100);
+
+                if (isLooping && loopEnd > loopStart && newPosition >= loopEnd) {
+                    newPosition = loopStart + ((newPosition - loopEnd) % (loopEnd - loopStart));
                 } else if (maxDuration > 0) {
                     newPosition %= maxDuration;
                 }
-                
                 playbackPositionRef.current = newPosition;
             }
-            
-            setPlaybackTime(playbackPositionRef.current);
 
+            setPlaybackTime(playbackPositionRef.current);
             setStems(prevStems => prevStems.map(stem => {
                 if (stem.sourceNode) {
-                    try {
-                        stem.sourceNode.stop(0); // Arrêt immédiat
-                    } catch (e) { /* ignore */ }
+                    try { stem.sourceNode.stop(0); } catch (e) {}
                 }
                 return { ...stem, isPlaying: false, sourceNode: null };
             }));
-            
+
             playbackStartTimeRef.current = null;
-            context.suspend().catch(e => console.error("Failed to suspend AudioContext:", e));
+            context.suspend().catch(console.error);
         }
-        
+
         setIsAllPlaying(shouldPlay);
-    }, [isAllPlaying, isAudioReady, maxDuration, createAndStartSource, isLooping, loopStart, loopEnd]);
-    
-    // 4. Gestion du Seek (déplacement dans la piste)
+    }, [isAllPlaying, isAudioReady, maxDuration, createAndStartSource, isLooping, loopStart, loopEnd, tempo]);
+
+    // 4. Seek
     const handleSeek = useCallback((newTime: number, forceLoopState?: boolean) => {
         if (!audioContextRef.current || !isAudioReady || maxDuration === 0) return;
         const context = audioContextRef.current;
-        
         const currentLoopState = forceLoopState !== undefined ? forceLoopState : isLooping;
 
-        // 1. S'assurer que le nouveau temps est dans les limites [0, maxDuration]
         let clampedTime = Math.max(0, Math.min(newTime, maxDuration));
-        
-        if (currentLoopState && loopEnd > loopStart) { 
-            if (clampedTime < loopStart || clampedTime >= loopEnd) {
-                clampedTime = loopStart; 
-            }
-        } else {
-             if (maxDuration > 0) {
-                clampedTime = clampedTime % maxDuration;
-            }
+        if (currentLoopState && loopEnd > loopStart) {
+            if (clampedTime < loopStart || clampedTime >= loopEnd) clampedTime = loopStart;
+        } else if (maxDuration > 0) {
+            clampedTime = clampedTime % maxDuration;
         }
 
-        // 2. Mettre à jour les références et l'affichage
         playbackPositionRef.current = clampedTime;
-        setPlaybackTime(clampedTime); 
-        
-        // 3. Si actuellement en lecture, on arrête et on redémarre tout
+        setPlaybackTime(clampedTime);
+
         if (isAllPlaying) {
-            
-            // Arrêter les sources actuelles (si elles existent)
             setStems(prevStems => prevStems.map(stem => {
                 if (stem.sourceNode) {
-                    try {
-                        stem.sourceNode.stop(0); // Arrêt immédiat
-                    } catch (e) { /* ignore */ }
+                    try { stem.sourceNode.stop(0); } catch (e) {}
                 }
                 return { ...stem, sourceNode: null };
             }));
 
-            // Redémarrer la lecture à partir du nouvel offset
-            const scheduledTime = context.currentTime + 0.05; 
-            playbackStartTimeRef.current = scheduledTime; 
+            const scheduledTime = context.currentTime + 0.05;
+            playbackStartTimeRef.current = scheduledTime;
 
             setStems(prevStems => prevStems.map(stem => {
-                if (stem.hasLoadError || !stem.buffer || !stem.gainNode) return stem; 
-
+                if (stem.hasLoadError || !stem.buffer || !stem.gainNode) return stem;
                 try {
-                    // Utiliser les valeurs d'état actuelles (ou forcées) pour les bornes A/B
-                    const newSourceNode = createAndStartSource(stem, context, clampedTime, currentLoopState, loopStart, loopEnd);
-                    return { ...stem, isPlaying: true, sourceNode: newSourceNode };
+                    const newSource = createAndStartSource(stem, context, clampedTime, currentLoopState, loopStart, loopEnd, tempo);
+                    return { ...stem, isPlaying: true, sourceNode: newSource };
                 } catch (e) {
-                    console.error(`Failed to restart stem ${stem.name} after seek:`, e);
                     return { ...stem, isPlaying: false };
                 }
             }));
         }
-    }, [isAllPlaying, isAudioReady, maxDuration, createAndStartSource, isLooping, loopStart, loopEnd]);
-    
-    // 5. NOUVELLE LOGIQUE: Gère l'activation/désactivation de la boucle A-B
+    }, [isAllPlaying, isAudioReady, maxDuration, createAndStartSource, isLooping, loopStart, loopEnd, tempo]);
+
+    // 5. Toggle Loop
     const toggleLoop = useCallback(() => {
         if (!isAudioReady || maxDuration === 0) return;
-        
         const nextLoopState = !isLooping;
 
-        if (!nextLoopState) { 
-            // --- ACTION: Tourner OFF la boucle (Implémentation de la demande utilisateur) ---
-            
+        if (!nextLoopState) {
             const wasPlaying = isAllPlaying;
-            
-            // 1. Si la lecture est active, on PAUSE proprement pour capturer la position exacte.
-            if (wasPlaying) {
-                // Cette fonction met en pause, met à jour playbackPositionRef.current, et suspend le contexte.
-                toggleAllPlayback(); 
-            }
-            
-            // 2. Mettre à jour l'état de boucle et réinitialiser les marqueurs A/B aux limites
-            setIsLooping(false); 
-            setLoopStart(0.01); 
+            if (wasPlaying) toggleAllPlayback();
+            setIsLooping(false);
+            setLoopStart(0.01);
             setLoopEnd(maxDuration);
-            
-            // 3. Si l'audio était en lecture, on le relance immédiatement (reprise de lecture).
-            if (wasPlaying) {
-                 // Petite attente pour s'assurer que l'état React (isLooping=false) est appliqué 
-                 // et que le contexte est suspendu, avant de le reprendre.
-                setTimeout(() => {
-                    toggleAllPlayback(); // Reprend la lecture (va utiliser isLooping=false)
-                }, 50); 
-            }
-            
+            if (wasPlaying) setTimeout(() => toggleAllPlayback(), 50);
         } else {
-            // --- ACTION: Tourner ON la boucle ---
             setIsLooping(true);
-            
-            // Si en lecture, on redémarre les sources avec les nouveaux paramètres de boucle.
-            if (isAllPlaying) {
-                // Utilise handleSeek pour s'assurer que les nouveaux nœuds audio sont créés
-                handleSeek(playbackTime, true); 
-            }
+            if (isAllPlaying) handleSeek(playbackTime, true);
         }
     }, [isLooping, isAllPlaying, maxDuration, playbackTime, isAudioReady, toggleAllPlayback, handleSeek]);
 
-
-    // Fonction: Retour 5 secondes
+    // 6. Rewind / Forward
     const handleRewind = useCallback(() => {
         if (!isAudioReady || maxDuration === 0) return;
-
-        let newTime = playbackTime - 5;
-        if (newTime < 0) {
-            newTime = 0; 
-        }
-        
-        // handleSeek utilise l'état isLooping actuel
-        handleSeek(newTime);
+        handleSeek(Math.max(0, playbackTime - 5));
     }, [isAudioReady, playbackTime, maxDuration, handleSeek]);
-    
-    // Fonction: Avancer 5 secondes
+
     const handleForward = useCallback(() => {
         if (!isAudioReady || maxDuration === 0) return;
-
-        let newTime = playbackTime + 5;
-
-        if (maxDuration > 0) {
-             newTime %= maxDuration;
-        }
-        
-        // handleSeek utilise l'état isLooping actuel
-        handleSeek(newTime);
+        handleSeek((playbackTime + 5) % maxDuration);
     }, [isAudioReady, maxDuration, playbackTime, handleSeek]);
 
+    // 7. Tempo control
+    const handleTempoChange = useCallback((newTempo: number) => {
+        const clamped = Math.max(50, Math.min(200, newTempo));
+        setTempo(clamped);
 
-    // Logique de Drag-and-Drop pour les marqueurs de boucle (A et B)
-    
-    // Convertit une position en pixels (clientX) en temps (secondes)
-    const positionToTime = useCallback((clientX: number): number => {
-        if (!seekBarRef.current || maxDuration === 0) return 0;
-        const rect = seekBarRef.current.getBoundingClientRect();
-        const x = clientX - rect.left;
-        let normalizedPosition = x / rect.width;
-        normalizedPosition = Math.max(0, Math.min(normalizedPosition, 1));
-        return normalizedPosition * maxDuration;
-    }, [maxDuration]);
+        // Update rate on any currently-playing source nodes
+        setStems(prevStems => prevStems.map(stem => {
+            if (stem.sourceNode) {
+                try {
+                    stem.sourceNode.playbackRate.value = clamped / 100;
+                } catch (e) {}
+            }
+            return stem;
+        }));
+    }, []);
 
-    // Gère le déplacement de la souris/touch
-    const handleDrag = useCallback((clientX: number) => {
-        if (isDraggingRef.current === null || maxDuration === 0) return;
-        
-        let newTime = positionToTime(clientX);
-        
-        if (isDraggingRef.current === 'start') {
-            newTime = Math.min(newTime, loopEnd - 0.1); 
-            setLoopStart(Math.max(0.01, newTime)); // Garder 0.01 comme minimum
-        } else if (isDraggingRef.current === 'end') {
-            newTime = Math.max(newTime, loopStart + 0.1);
-            setLoopEnd(Math.min(maxDuration, newTime));
-        }
-    }, [maxDuration, loopStart, loopEnd, positionToTime]);
-
-    // Fonction de nettoyage des listeners après le drag
-    const handleDragEnd = useCallback(() => {
-        if (isDraggingRef.current === null) return;
-        
-        isDraggingRef.current = null;
-        
-        document.removeEventListener('mousemove', handleGlobalMouseMove);
-        document.removeEventListener('mouseup', handleGlobalMouseUp);
-        document.removeEventListener('touchmove', handleGlobalTouchMove);
-        document.removeEventListener('touchend', handleGlobalTouchEnd);
-        
-        // Optionnel: Appliquer la recherche à la nouvelle position de A/B si on était en lecture
-        if (isAllPlaying) {
-             // Redémarre l'audio pour appliquer les nouvelles bornes A/B
-             handleSeek(playbackTime); 
-        }
-
-    }, [isAllPlaying, handleSeek, playbackTime]); 
-
-    // Wrappers pour les listeners globaux
-    const handleGlobalMouseMove = useCallback((e: MouseEvent) => {
-        handleDrag(e.clientX);
-    }, [handleDrag]);
-
-    const handleGlobalMouseUp = useCallback(() => {
-        handleDragEnd();
-    }, [handleDragEnd]);
-
-    const handleGlobalTouchMove = useCallback((e: TouchEvent) => {
-        if (e.touches.length > 0) {
-            e.preventDefault(); 
-            handleDrag(e.touches[0].clientX);
-        }
-    }, [handleDrag]);
-
-    const handleGlobalTouchEnd = useCallback(() => {
-        handleDragEnd();
-    }, [handleDragEnd]);
-
-    // Initialisation du drag (sur le marqueur)
-    const handleDragStart = useCallback((e: React.MouseEvent | React.TouchEvent, type: 'start' | 'end') => {
-        if ('touches' in e && e.touches.length > 0) {
-            e.preventDefault();
-        }
-        
-        isDraggingRef.current = type;
-        
-        document.addEventListener('mousemove', handleGlobalMouseMove);
-        document.addEventListener('mouseup', handleGlobalMouseUp);
-        document.addEventListener('touchmove', handleGlobalTouchMove, { passive: false }); 
-        document.addEventListener('touchend', handleGlobalTouchEnd);
-
-    }, [handleGlobalMouseMove, handleGlobalMouseUp, handleGlobalTouchMove, handleGlobalTouchEnd]);
-
-        
-    // 6. Gestion du Volume (via GainNode)
+    // 8. Volume
     const handleVolumeChange = useCallback((name: string, newVolume: number) => {
         setStems(prevStems => prevStems.map(stem => {
             if (stem.name === name) {
@@ -644,66 +447,86 @@ export default function Separator() {
                 if (stem.gainNode && audioContextRef.current) {
                     stem.gainNode.gain.setValueAtTime(finalVolume, audioContextRef.current.currentTime);
                 }
-                return { ...stem, volume: newVolume }; 
+                return { ...stem, volume: newVolume };
             }
             return stem;
         }));
     }, []);
 
-    // 7. Gestion du Mute (via GainNode)
+    // 9. Mute
     const toggleMute = useCallback((name: string) => {
         setStems(prevStems => prevStems.map(stem => {
             if (stem.name === name) {
-                const newMuteState = !stem.isMuted;
+                const newMuted = !stem.isMuted;
                 if (stem.gainNode && audioContextRef.current) {
-                    const finalVolume = newMuteState ? 0 : stem.volume;
-                    stem.gainNode.gain.setValueAtTime(finalVolume, audioContextRef.current.currentTime);
+                    stem.gainNode.gain.setValueAtTime(newMuted ? 0 : stem.volume, audioContextRef.current.currentTime);
                 }
-                return { ...stem, isMuted: newMuteState };
+                return { ...stem, isMuted: newMuted };
             }
             return stem;
         }));
     }, []);
-    
-    // Icônes dynamiques pour les stems
-    const getStemIcon = (name: string) => {
-        switch (name.toLowerCase()) {
-            case 'vocals':
-                return <Music className="w-5 h-5 text-red-500" />;
-            case 'drums':
-            case 'drum': 
-                return <Disc3 className="w-5 h-5 text-blue-500" />;
-            case 'bass':
-                return <Aperture className="w-5 h-5 text-green-500" />;
-            case 'other':
-            default:
-                return <Zap className="w-5 h-5 text-yellow-500" />;
-        }
-    }
-    
-    // Calcul du pourcentage de lecture pour la barre de progression (pour le style)
-    const playbackPercent = maxDuration > 0 ? (playbackTime / maxDuration) * 100 : 0;
 
-    // Affiche l'état de chargement
+    // Drag handlers for A-B loop markers
+    const positionToTime = useCallback((clientX: number): number => {
+        if (!seekBarRef.current || maxDuration === 0) return 0;
+        const rect = seekBarRef.current.getBoundingClientRect();
+        const normalized = Math.max(0, Math.min((clientX - rect.left) / rect.width, 1));
+        return normalized * maxDuration;
+    }, [maxDuration]);
+
+    const handleDrag = useCallback((clientX: number) => {
+        if (!isDraggingRef.current || maxDuration === 0) return;
+        let t = positionToTime(clientX);
+        if (isDraggingRef.current === 'start') setLoopStart(Math.max(0.01, Math.min(t, loopEnd - 0.1)));
+        else setLoopEnd(Math.min(maxDuration, Math.max(t, loopStart + 0.1)));
+    }, [maxDuration, loopStart, loopEnd, positionToTime]);
+
+    const handleDragEnd = useCallback(() => {
+        if (!isDraggingRef.current) return;
+        isDraggingRef.current = null;
+        document.removeEventListener('mousemove', handleGlobalMouseMove);
+        document.removeEventListener('mouseup', handleGlobalMouseUp);
+        document.removeEventListener('touchmove', handleGlobalTouchMove);
+        document.removeEventListener('touchend', handleGlobalTouchEnd);
+        if (isAllPlaying) handleSeek(playbackTime);
+    }, [isAllPlaying, handleSeek, playbackTime]);
+
+    const handleGlobalMouseMove = useCallback((e: MouseEvent) => handleDrag(e.clientX), [handleDrag]);
+    const handleGlobalMouseUp = useCallback(() => handleDragEnd(), [handleDragEnd]);
+    const handleGlobalTouchMove = useCallback((e: TouchEvent) => {
+        if (e.touches.length > 0) { e.preventDefault(); handleDrag(e.touches[0].clientX); }
+    }, [handleDrag]);
+    const handleGlobalTouchEnd = useCallback(() => handleDragEnd(), [handleDragEnd]);
+
+    const handleDragStart = useCallback((e: React.MouseEvent | React.TouchEvent, type: 'start' | 'end') => {
+        if ('touches' in e && e.touches.length > 0) e.preventDefault();
+        isDraggingRef.current = type;
+        document.addEventListener('mousemove', handleGlobalMouseMove);
+        document.addEventListener('mouseup', handleGlobalMouseUp);
+        document.addEventListener('touchmove', handleGlobalTouchMove, { passive: false });
+        document.addEventListener('touchend', handleGlobalTouchEnd);
+    }, [handleGlobalMouseMove, handleGlobalMouseUp, handleGlobalTouchMove, handleGlobalTouchEnd]);
+
+    const playbackPercent = maxDuration > 0 ? (playbackTime / maxDuration) * 100 : 0;
+    const hasLoadError = stems.some(s => s.hasLoadError);
+
+    // Loading state
     if (isInitializing || !isAudioReady) {
         const loadedCount = stems.filter(s => s.buffer).length;
         const totalCount = stems.length;
-        
         return (
-            <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900 font-inter">
-                <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
-                <p className="mt-4 text-gray-700 dark:text-gray-300">
-                    {isInitializing && totalCount > 0 ? 
-                     `Initialisation du studio... (Prépare ${totalCount} pistes)` : 
-                     (totalCount > 0 ? 
-                         `Chargement et décodage des pistes... (${loadedCount}/${totalCount})` : 
-                         "Initialisation...")
-                    }
+            <div className="flex flex-col items-center justify-center min-h-screen bg-[#0c0c0e]">
+                <div className="relative">
+                    <div className="w-16 h-16 rounded-full border-2 border-amber-500/20 border-t-amber-500 animate-spin" />
+                    <Disc3 className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 text-amber-500/60" />
+                </div>
+                <p className="mt-6 text-gray-400 text-sm tracking-widest uppercase font-mono">
+                    {isInitializing && totalCount > 0 ? `Preparing ${totalCount} tracks` : `Loading ${loadedCount} / ${totalCount}`}
                 </p>
-                {stems.some(s => s.hasLoadError) && (
-                    <p className="mt-2 text-sm text-red-500 flex items-center">
-                        <X className="w-4 h-4 mr-1"/>
-                        Certaines pistes ont échoué au chargement ou au décodage.
+                {hasLoadError && (
+                    <p className="mt-3 text-xs text-red-400 flex items-center gap-1">
+                        <X className="w-3 h-3" /> Some tracks failed to load
                     </p>
                 )}
             </div>
@@ -711,295 +534,317 @@ export default function Separator() {
     }
 
     if (!studioData) {
-        return <div className="p-6 text-center text-red-500 dark:text-red-400">Erreur critique : Données de studio manquantes. Veuillez retourner à la bibliothèque.</div>;
+        return <div className="p-6 text-center text-red-400 min-h-screen bg-[#0c0c0e] flex items-center justify-center">Missing studio data. Return to library.</div>;
     }
-    
-    // Rendu du composant principal
+
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 sm:p-8 font-inter">
-            <div className="max-w-4xl mx-auto">
-                
-                {/* En-tête et Bouton Retour */}
+        <div className="min-h-screen bg-[#0c0c0e] p-4 sm:p-8" style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}>
+            <div className="max-w-3xl mx-auto">
+
+                {/* Header */}
                 <div className="flex items-center justify-between mb-8">
-                    <Button 
-                        variant="outline" 
-                        onClick={() => {
-                            if (isAllPlaying) toggleAllPlayback(); 
-                            setLocation('/library');
-                        }} 
-                        className="text-muted-foreground border-gray-300 dark:border-gray-700"
+                    <Button
+                        variant="ghost"
+                        onClick={() => { if (isAllPlaying) toggleAllPlayback(); setLocation('/library'); }}
+                        className="text-gray-400 hover:text-white gap-2"
                     >
-                        <ArrowLeft className="w-4 h-4 mr-2" />
-                        Retour
+                        <ArrowLeft className="w-4 h-4" />
+                        <span className="text-sm">Library</span>
                     </Button>
-                    <h1 className="text-2xl font-bold truncate max-w-[70%] text-center text-gray-900 dark:text-white" title={studioData.trackTitle}>
-                        {studioData.trackTitle}
-                    </h1>
-                    {/* Espace de remplissage pour l'alignement */}
-                    <div className="w-24"></div> 
+
+                    <div className="text-center">
+                        <p className="text-xs text-amber-500 tracking-[0.2em] uppercase font-mono mb-1">Now Editing</p>
+                        <h1 className="text-lg font-semibold text-white truncate max-w-[260px]" title={studioData.trackTitle}>
+                            {studioData.trackTitle}
+                        </h1>
+                    </div>
+
+                    <div className="w-24" />
                 </div>
-                
-                {/* --- BARRE DE LECTURE (PLAYER BAR) --- */}
-                <Card className="mb-4 p-4 shadow-xl bg-gray-900 dark:bg-gray-900 text-white">
-    <div className="flex flex-col gap-4">
-        
-        {/* 1. Barre de Progression (Seek Bar) avec Temps */}
-        <div className="flex items-center w-full gap-3">
-            
-            {/* Temps Actuel */}
-            <span className="text-sm font-mono text-gray-300 w-12 text-left shrink-0">
-                {formatTime(playbackTime)}
-            </span>
-            
-            {/* Barre et Visualisation */}
-            <div className="flex-1 relative h-2 flex items-center" ref={seekBarRef}>
-                
-                {/* Piste de fond grise pour la barre (couche 1) */}
-                <div className="absolute inset-0 h-2 bg-gray-600 dark:bg-gray-700 rounded-full" />
 
-                {/* Visualisation de la zone de boucle (si active) (couche 2) */}
-                {isLooping && loopEnd > loopStart && (
-                    <div 
-                        className="absolute h-2 bg-blue-500/50 z-0"
-                        style={{
-                            left: `${(loopStart / maxDuration) * 100}%`,
-                            width: `${((loopEnd - loopStart) / maxDuration) * 100}%`,
-                        }}
-                    />
-                )}
-                
-                {/* Range Input (Le fader lui-même et la progression blanche) (couche 3: z-10) */}
-                <input 
-                    type="range"
-                    min="0"
-                    max={maxDuration}
-                    step="0.01"
-                    value={playbackTime}
-                    onChange={(e) => {
-                        setPlaybackTime(parseFloat(e.target.value));
-                    }}
-                    onMouseUp={(e) => {
-                        handleSeek(parseFloat((e.target as HTMLInputElement).value));
-                    }}
-                    onTouchEnd={(e) => {
-                        handleSeek(parseFloat((e.target as HTMLInputElement).value));
-                    }}
-                    disabled={!isAudioReady || stems.some(s => s.hasLoadError)}
-                    className={`h-2 appearance-none rounded-full transition-colors flex-1 cursor-pointer w-full relative z-10`}
-                    style={{ 
-                        WebkitAppearance: 'none', 
-                        background: `linear-gradient(to right, 
-                            #ffffff ${playbackPercent}%, 
-                            transparent ${playbackPercent}%, 
-                            transparent 100%)`,
-                        opacity: 1, 
-                    } as React.CSSProperties}
-                />
-                
-                {/* Marqueur A (Loop Start) - STYLE BARRE VERTICALE (couche 4: z-20) */}
-                {maxDuration > 0 && isLooping && (
-                    <div 
-                        className="absolute top-1/2 -translate-y-1/2 pointer-events-auto cursor-ew-resize active:cursor-grabbing z-20 touch-none" 
-                        style={{ left: `${(loopStart / maxDuration) * 100}%`, transform: 'translateX(-50%)' }}
-                        onMouseDown={(e) => handleDragStart(e, 'start')}
-                        onTouchStart={(e) => handleDragStart(e, 'start')}
-                    >
-                        {/* Zone invisible plus large pour attraper facilement la barre */}
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-8 bg-transparent" />
-                        
-                        {/* La barre visuelle (Style "Handle") */}
-                        <div className="w-2 h-5 bg-gray-200 border border-gray-400 rounded-sm shadow-md ring-1 ring-black/20" />
-                    </div>
-                )}
-                
-                {/* Marqueur B (Loop End) - STYLE BARRE VERTICALE (couche 4: z-20) */}
-                {maxDuration > 0  && isLooping && (
-                    <div 
-                        className="absolute top-1/2 -translate-y-1/2 pointer-events-auto cursor-ew-resize active:cursor-grabbing z-20 touch-none" 
-                        style={{ left: `${(loopEnd / maxDuration) * 100}%`, transform: 'translateX(-50%)' }}
-                        onMouseDown={(e) => handleDragStart(e, 'end')}
-                        onTouchStart={(e) => handleDragStart(e, 'end')}
-                    >
-                        {/* Zone invisible plus large */}
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-8 bg-transparent" />
+                {/* ─── PLAYER BAR ─── */}
+                <div className="mb-4 p-5 rounded-2xl bg-[#141416] border border-white/5 shadow-2xl">
 
-                         {/* La barre visuelle (Style "Handle") */}
-                        <div className="w-2 h-5 bg-gray-200 border border-gray-400 rounded-sm shadow-md ring-1 ring-black/20" />
-                    </div>
-                )}
-            </div>
+                    {/* Seek bar */}
+                    <div className="flex items-center gap-3 mb-5">
+                        <span className="text-xs font-mono text-gray-500 w-10 text-right shrink-0 tabular-nums">
+                            {formatTime(playbackTime)}
+                        </span>
 
-            {/* Temps Restant */}
-            <span className="text-sm font-mono text-gray-300 w-12 text-right shrink-0">
-                -{formatTime(maxDuration - playbackTime)}
-            </span>
-        </div>
-        
-        {/* 2. Boutons de Contrôle (Reste inchangé) */}
-        <div className="flex items-center justify-center gap-6">
-            <Button 
-                onClick={handleRewind} 
-                size="icon"
-                variant="secondary"
-                className="h-10 w-10 bg-transparent hover:bg-gray-800 text-white"
-                disabled={!isAudioReady || stems.some(s => s.hasLoadError)}
-            >
-                <ArrowLeft className="w-6 h-6" />
-            </Button>
+                        <div className="flex-1 relative h-1.5 flex items-center" ref={seekBarRef}>
+                            {/* Track bg */}
+                            <div className="absolute inset-0 h-1.5 bg-white/8 rounded-full" />
 
-            <Button 
-                onClick={toggleAllPlayback} 
-                size="icon"
-                variant="secondary"
-                className="h-12 w-12 bg-transparent hover:bg-gray-800 text-white"
-                disabled={!isAudioReady || stems.some(s => s.hasLoadError)}
-            >
-                {isAllPlaying ? (
-                    <Pause className="w-8 h-8 fill-white" /> 
-                ) : (
-                    <Play className="w-8 h-8 fill-white ml-1" /> 
-                )}
-            </Button>
-            
-            <Button 
-                onClick={handleForward} 
-                size="icon"
-                variant="secondary"
-                className="h-10 w-10 bg-transparent hover:bg-gray-800 text-white"
-                disabled={!isAudioReady || stems.some(s => s.hasLoadError)}
-            >
-                <ArrowRight className="w-6 h-6" />
-            </Button>
+                            {/* Loop zone */}
+                            {isLooping && loopEnd > loopStart && (
+                                <div
+                                    className="absolute h-1.5 bg-amber-500/30 z-0 rounded-full"
+                                    style={{
+                                        left: `${(loopStart / maxDuration) * 100}%`,
+                                        width: `${((loopEnd - loopStart) / maxDuration) * 100}%`,
+                                    }}
+                                />
+                            )}
 
-        </div>
-    </div>
-</Card>
-                {/* --- FIN BARRE DE LECTURE --- */}
+                            {/* Progress */}
+                            <input
+                                type="range"
+                                min="0" max={maxDuration} step="0.01"
+                                value={playbackTime}
+                                onChange={e => setPlaybackTime(parseFloat(e.target.value))}
+                                onMouseUp={e => handleSeek(parseFloat((e.target as HTMLInputElement).value))}
+                                onTouchEnd={e => handleSeek(parseFloat((e.target as HTMLInputElement).value))}
+                                disabled={!isAudioReady || hasLoadError}
+                                className="appearance-none h-1.5 rounded-full w-full relative z-10 cursor-pointer"
+                                style={{
+                                    WebkitAppearance: 'none',
+                                    background: `linear-gradient(to right, #f59e0b ${playbackPercent}%, transparent ${playbackPercent}%, transparent 100%)`,
+                                } as React.CSSProperties}
+                            />
 
-                {/* --- CONTRÔLES DE BOUCLE (A-B Loop Controls) --- */}
-          <Card className="mb-8 p-5 shadow-2xl bg-slate-900 border border-slate-700/50 rounded-2xl transition-all duration-300 ease-in-out">
-    <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-        
-        {/* Left Side: Title & Toggle */}
-        <div className="flex items-center gap-5 w-full md:w-auto justify-center md:justify-start">
-            <h3 className="font-bold text-lg text-blue-500 tracking-wide flex-shrink-0">
-                Loop (A-B)
-            </h3>
-            
-            <Button 
-                onClick={toggleLoop} 
-                className={`
-                    transition-all duration-200 ease-in-out shadow-lg border
-                    ${isLooping 
-                        ? "bg-gradient-to-b from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 border-green-400 text-white shadow-green-900/20" 
-                        : "bg-transparent border-slate-600 text-slate-400 hover:text-white hover:border-slate-500"
-                    }
-                `}
-                disabled={isLooping && loopStart >= loopEnd}
-            >
-                <Repeat2 className={`w-5 h-5 mr-2 ${isLooping ? "animate-spin-slow" : ""}`} />
-                {isLooping ? 'Loop ON' : 'Loop OFF'}
-            </Button>
-        </div>
-        
-        {/* Right Side: Markers (Only visible if Loop is ON) */}
-        {isLooping && (
-            <div className="flex gap-3 w-full md:w-auto justify-center md:justify-end animate-in fade-in slide-in-from-left-4 duration-300">
-                {/* Mark A Button */}
-                <Button 
-                    onClick={() => setLoopStart(Math.max(0.01, playbackTime))}
-                    className="bg-gradient-to-b from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white border border-blue-400/30 shadow-lg shadow-blue-900/20 active:scale-95 transition-transform"
-                >
-                    Mark A 
-                    <span className="ml-2 font-mono text-xs text-blue-200 opacity-80 border-l border-blue-400/30 pl-2">
-                        {formatTime(loopStart)}
-                    </span>
-                </Button>
-
-                {/* Mark B Button */}
-                <Button 
-                    onClick={() => setLoopEnd(Math.min(maxDuration, playbackTime))}
-                    className="bg-gradient-to-b from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white border border-red-400/30 shadow-lg shadow-red-900/20 active:scale-95 transition-transform"
-                >
-                    Mark B 
-                    <span className="ml-2 font-mono text-xs text-red-200 opacity-80 border-l border-red-400/30 pl-2">
-                        {formatTime(loopEnd)}
-                    </span>
-                </Button>
-            </div>
-        )}
-    </div>
-    
-    {/* Error Message (Only visible if Loop is ON and logic is invalid) */}
-    {isLooping && loopStart >= loopEnd && (
-        <div className="mt-4 p-2 rounded bg-red-900/20 border border-red-900/50 text-center animate-pulse">
-            <p className="text-sm text-red-400 font-medium">
-                ⚠️ Start point (A) must be before end point (B) to enable the loop.
-            </p>
-        </div>
-    )}
-</Card>
-                {/* --- FIN CONTRÔLES DE BOUCLE --- */}
-
-                {/* Liste des Faders de Pistes */}
-                <div className="space-y-4">
-                    {stems.map((stem) => (
-                        <Card key={stem.name} className={`p-4 transition-all duration-300 shadow-md ${stem.isPlaying && !stem.isMuted ? 'ring-2 ring-blue-500/70 border-blue-400' : 'hover:shadow-xl'}`}>
-                            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                                
-                                {getStemIcon(stem.name)}
-
-                                <h3 className="flex-1 font-semibold text-lg capitalize truncate max-w-[200px] text-gray-900 dark:text-white">{stem.name}</h3>
-                                
-                                {/* Indicateur d'erreur de chargement */}
-                                {stem.hasLoadError && (
-                                    <span className="px-3 py-1 text-xs font-bold text-red-700 bg-red-100 dark:bg-red-900 dark:text-red-300 rounded-full shrink-0">
-                                        ERREUR CHARGEMENT
-                                    </span>
-                                )}
-                                
-                                {/* Contrôle de Volume et Mute/Unmute */}
-                                <div className="flex items-center gap-3 w-full sm:max-w-md">
-                                    
-                                    {/* Bouton Mute/Unmute */}
-                                    <Button 
-                                        size="icon" 
-                                        variant={stem.isMuted ? "danger" : "secondary"}
-                                        onClick={() => toggleMute(stem.name)}
-                                        disabled={stem.hasLoadError || !isAudioReady}
-                                        className={`transition-colors h-10 w-10 shrink-0 ${stem.hasLoadError ? 'opacity-50' : ''}`}
+                            {/* Loop handles */}
+                            {maxDuration > 0 && isLooping && (
+                                <>
+                                    <div
+                                        className="absolute top-1/2 -translate-y-1/2 z-20 cursor-ew-resize touch-none"
+                                        style={{ left: `${(loopStart / maxDuration) * 100}%`, transform: 'translateX(-50%)' }}
+                                        onMouseDown={e => handleDragStart(e, 'start')}
+                                        onTouchStart={e => handleDragStart(e, 'start')}
                                     >
-                                        <Volume2 className={`w-5 h-5 ${stem.isMuted ? 'stroke-white' : 'text-gray-500 dark:text-gray-400'}`} />
-                                    </Button>
+                                        <div className="w-1.5 h-4 bg-amber-400 rounded-full shadow-lg shadow-amber-400/30" />
+                                    </div>
+                                    <div
+                                        className="absolute top-1/2 -translate-y-1/2 z-20 cursor-ew-resize touch-none"
+                                        style={{ left: `${(loopEnd / maxDuration) * 100}%`, transform: 'translateX(-50%)' }}
+                                        onMouseDown={e => handleDragStart(e, 'end')}
+                                        onTouchStart={e => handleDragStart(e, 'end')}
+                                    >
+                                        <div className="w-1.5 h-4 bg-amber-400 rounded-full shadow-lg shadow-amber-400/30" />
+                                    </div>
+                                </>
+                            )}
+                        </div>
 
-                                    {/* Fader de Volume */}
-                                    <input 
-                                        type="range"
-                                        min="0"
-                                        max="1"
-                                        step="0.01"
-                                        value={stem.volume}
-                                        onChange={(e) => handleVolumeChange(stem.name, parseFloat(e.target.value))}
-                                        disabled={stem.hasLoadError || !isAudioReady}
-                                        className={`h-2 appearance-none rounded-full bg-gray-300 dark:bg-gray-700 transition-colors flex-1 cursor-pointer ${stem.isMuted || stem.hasLoadError ? 'opacity-50' : ''}`}
-                                        style={{ 
-                                            WebkitAppearance: 'none', 
-                                            background: `linear-gradient(to right, 
-                                                #4f46e5 ${stem.volume * 100}%, 
-                                                #e5e7eb ${stem.volume * 100}%, 
-                                                #e5e7eb 100%)` 
-                                        } as React.CSSProperties}
-                                    />
+                        <span className="text-xs font-mono text-gray-500 w-10 text-left shrink-0 tabular-nums">
+                            -{formatTime(maxDuration - playbackTime)}
+                        </span>
+                    </div>
 
-                                    <span className="text-sm font-mono w-10 text-right text-gray-500 dark:text-gray-400 shrink-0">
-                                        {Math.round(stem.volume * 100)}%
-                                    </span>
-                                </div>
+                    {/* Controls row */}
+                    <div className="flex items-center justify-between">
 
+                        {/* Left: Loop toggle */}
+                        <div className="flex items-center gap-2 w-1/3">
+                            <button
+                                onClick={toggleLoop}
+                                disabled={isLooping && loopStart >= loopEnd}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 border ${
+                                    isLooping
+                                        ? 'bg-amber-500/15 border-amber-500/40 text-amber-400'
+                                        : 'bg-transparent border-white/10 text-gray-500 hover:text-gray-300 hover:border-white/20'
+                                }`}
+                            >
+                                <Repeat2 className="w-3.5 h-3.5" />
+                                Loop
+                            </button>
+                        </div>
+
+                        {/* Center: Transport */}
+                        <div className="flex items-center gap-3 justify-center w-1/3">
+                            <button
+                                onClick={handleRewind}
+                                disabled={!isAudioReady || hasLoadError}
+                                className="p-2 text-gray-400 hover:text-white transition-colors disabled:opacity-30"
+                            >
+                                <ArrowLeft className="w-5 h-5" />
+                            </button>
+
+                            <button
+                                onClick={toggleAllPlayback}
+                                disabled={!isAudioReady || hasLoadError}
+                                className="w-12 h-12 rounded-full bg-amber-500 hover:bg-amber-400 active:scale-95 transition-all flex items-center justify-center shadow-lg shadow-amber-500/30 disabled:opacity-40"
+                            >
+                                {isAllPlaying
+                                    ? <Pause className="w-5 h-5 fill-black text-black" />
+                                    : <Play  className="w-5 h-5 fill-black text-black ml-0.5" />
+                                }
+                            </button>
+
+                            <button
+                                onClick={handleForward}
+                                disabled={!isAudioReady || hasLoadError}
+                                className="p-2 text-gray-400 hover:text-white transition-colors disabled:opacity-30"
+                            >
+                                <ArrowRight className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Right: Tempo */}
+                        <div className="flex items-center justify-end w-1/3">
+                            <div className="flex items-center gap-1.5 bg-white/5 border border-white/8 rounded-xl px-3 py-1.5">
+                                <span className="text-xs text-gray-500 font-mono mr-1">BPM</span>
+
+                                <button
+                                    onClick={() => handleTempoChange(tempo - 5)}
+                                    disabled={!isAudioReady || tempo <= 50}
+                                    className="w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-all disabled:opacity-30"
+                                >
+                                    <ChevronDown className="w-3.5 h-3.5" />
+                                </button>
+
+                                <span className={`text-sm font-mono font-semibold tabular-nums w-8 text-center transition-colors ${
+                                    tempo !== 100 ? 'text-amber-400' : 'text-white'
+                                }`}>
+                                    {tempo}
+                                </span>
+
+                                <button
+                                    onClick={() => handleTempoChange(tempo + 5)}
+                                    disabled={!isAudioReady || tempo >= 200}
+                                    className="w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-all disabled:opacity-30"
+                                >
+                                    <ChevronUp className="w-3.5 h-3.5" />
+                                </button>
+
+                                {tempo !== 100 && (
+                                    <button
+                                        onClick={() => handleTempoChange(100)}
+                                        className="w-5 h-5 rounded flex items-center justify-center text-gray-500 hover:text-amber-400 transition-colors ml-0.5"
+                                        title="Reset tempo"
+                                    >
+                                        <RotateCcw className="w-3 h-3" />
+                                    </button>
+                                )}
                             </div>
-                        </Card>
-                    ))}
+                        </div>
+
+                    </div>
                 </div>
+
+                {/* ─── A-B LOOP CONTROLS ─── */}
+                {isLooping && (
+                    <div className="mb-4 p-4 rounded-2xl bg-[#141416] border border-amber-500/15 animate-in fade-in duration-200">
+                        <div className="flex items-center justify-between gap-4">
+                            <span className="text-xs text-amber-500 font-mono tracking-widest uppercase">A–B Loop</span>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setLoopStart(Math.max(0.01, playbackTime))}
+                                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-mono hover:bg-blue-500/20 transition-colors"
+                                >
+                                    <span className="font-bold">A</span>
+                                    <span className="text-blue-300/70">{formatTime(loopStart)}</span>
+                                </button>
+                                <button
+                                    onClick={() => setLoopEnd(Math.min(maxDuration, playbackTime))}
+                                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-mono hover:bg-rose-500/20 transition-colors"
+                                >
+                                    <span className="font-bold">B</span>
+                                    <span className="text-rose-300/70">{formatTime(loopEnd)}</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {loopStart >= loopEnd && (
+                            <p className="mt-3 text-xs text-red-400 text-center">
+                                ⚠ Point A must be before point B
+                            </p>
+                        )}
+                    </div>
+                )}
+
+                {/* ─── STEM TRACKS ─── */}
+                <div className="space-y-3">
+                    {stems.map((stem) => {
+                        const cfg = getStemConfig(stem.name);
+                        const isActive = stem.isPlaying && !stem.isMuted;
+
+                        return (
+                            <div
+                                key={stem.name}
+                                className="p-4 rounded-2xl border transition-all duration-300"
+                                style={{
+                                    backgroundColor: '#141416',
+                                    borderColor: isActive ? `${cfg.color}30` : 'rgba(255,255,255,0.05)',
+                                    boxShadow: isActive ? `0 0 20px ${cfg.color}10` : 'none',
+                                }}
+                            >
+                                <div className="flex items-center gap-4">
+
+                                    {/* Icon badge */}
+                                    <div
+                                        className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all duration-300"
+                                        style={{
+                                            backgroundColor: isActive ? `${cfg.color}20` : 'rgba(255,255,255,0.05)',
+                                            color: isActive ? cfg.color : '#6b7280',
+                                        }}
+                                    >
+                                        {cfg.icon}
+                                    </div>
+
+                                    {/* Name */}
+                                    <span
+                                        className="text-sm font-semibold w-16 shrink-0 transition-colors duration-300"
+                                        style={{ color: isActive ? cfg.color : '#9ca3af' }}
+                                    >
+                                        {cfg.label}
+                                    </span>
+
+                                    {/* Error badge */}
+                                    {stem.hasLoadError && (
+                                        <span className="px-2 py-0.5 text-xs font-mono text-red-400 bg-red-500/10 border border-red-500/20 rounded-md shrink-0">
+                                            ERR
+                                        </span>
+                                    )}
+
+                                    {/* Volume fader */}
+                                    <div className="flex items-center gap-3 flex-1">
+                                        {/* Mute button */}
+                                        <button
+                                            onClick={() => toggleMute(stem.name)}
+                                            disabled={stem.hasLoadError || !isAudioReady}
+                                            className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all ${
+                                                stem.isMuted
+                                                    ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                                                    : 'bg-white/5 text-gray-400 hover:text-white border border-white/5 hover:border-white/15'
+                                            } disabled:opacity-30`}
+                                        >
+                                            <Volume2 className="w-3.5 h-3.5" />
+                                        </button>
+
+                                        {/* Slider */}
+                                        <input
+                                            type="range"
+                                            min="0" max="1" step="0.01"
+                                            value={stem.volume}
+                                            onChange={e => handleVolumeChange(stem.name, parseFloat(e.target.value))}
+                                            disabled={stem.hasLoadError || !isAudioReady}
+                                            className="flex-1 h-1.5 appearance-none rounded-full cursor-pointer disabled:opacity-30"
+                                            style={{
+                                                WebkitAppearance: 'none',
+                                                background: stem.isMuted
+                                                    ? `linear-gradient(to right, rgba(255,255,255,0.15) ${stem.volume * 100}%, rgba(255,255,255,0.05) ${stem.volume * 100}%)`
+                                                    : `linear-gradient(to right, ${cfg.color} ${stem.volume * 100}%, rgba(255,255,255,0.07) ${stem.volume * 100}%)`,
+                                            } as React.CSSProperties}
+                                        />
+
+                                        {/* Volume % */}
+                                        <span className="text-xs font-mono tabular-nums w-8 text-right shrink-0"
+                                              style={{ color: stem.isMuted ? '#4b5563' : '#6b7280' }}>
+                                            {Math.round(stem.volume * 100)}
+                                        </span>
+                                    </div>
+
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+
+                {/* Footer hint */}
+                <p className="text-center text-xs text-gray-600 mt-8 font-mono tracking-wider">
+                    {tempo !== 100 ? `TEMPO ${tempo}% · ` : ''}{stems.length} TRACKS · {formatTime(maxDuration)}
+                </p>
+
             </div>
         </div>
     );
