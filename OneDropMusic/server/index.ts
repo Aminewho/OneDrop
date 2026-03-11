@@ -9,7 +9,7 @@ app.use(
   '/spotify',
   createProxyMiddleware({
     // Target is your Spring backend running on port 8081
-    target: 'http://127.0.0.1:8081', 
+    target: 'http://localhost:8081', 
     // Important for host headers in the proxy target
     changeOrigin: true, 
     // Optional: Log proxying activity

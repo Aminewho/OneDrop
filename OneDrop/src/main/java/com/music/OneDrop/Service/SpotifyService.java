@@ -34,7 +34,7 @@ public class SpotifyService {
         UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(SPOTIFY_API_V1 + "/search")
             .queryParam("q", encodedQuery)
             .queryParam("type", "track,artist") // Using all types for comprehensive search
-            .queryParam("limit",15 );
+            .queryParam("limit",5 );
 
         // 2. Prepare the headers (forward the Authorization header from the client)
         HttpHeaders headers = new HttpHeaders();

@@ -59,7 +59,7 @@ type ActiveTab = 'All' | 'Tracks' | 'Artists' | 'Albums';
 // --- Configuration ---
 // ⚠️ IMPORTANT : Remplacez ceci par votre clé API Google Cloud
 const YOUTUBE_API_KEY = "AIzaSyDEYDLuOqwcFQyomz8UwYTrMChjY_nSFks"; 
-const BACKEND_BASE_URL = "http://127.0.0.1:8080"; // Base URL de votre proxy/backend
+const BACKEND_BASE_URL = "http://localhost:8081"; // Base URL de votre proxy/backend
 
 // --- Helpers ---
 
@@ -563,11 +563,7 @@ console.log("YouTube Search URL:", query);
                         </div>
                         
                         <Button 
-                            className={`w-full h-16 text-lg font-bold shadow-lg transition-all transform hover:scale-[1.01] active:scale-95 ${
-                                currentStatus === 'COMPLETED' 
-                                ? "bg-blue-600 hover:bg-blue-700" 
-                                : "bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
-                            }`}
+                            className="w-full h-16 text-lg font-bold shadow-lg transition-all transform hover:scale-[1.01] active:scale-95 bg-blue-600 hover:bg-blue-500"
                             disabled={activeProcessingTrack.isSearchingYoutube || isWorking || !activeProcessingTrack.youtubeId}
                             onClick={executeSpleeter}
                         >
@@ -656,13 +652,11 @@ console.log("YouTube Search URL:", query);
                                 </Button>
                             )}
                             {item.type === 'track' && (
-                             <Button 
-    size="icon" // Utilise "icon" pour un bouton parfaitement carré/rond
+                             <CustomPlayButton 
+     // Utilise "icon" pour un bouton parfaitement carré/rond
     onClick={() => handleProcessTrack(item)} 
     className="bg-primary/90 hover:bg-primary text-primary-foreground rounded-full h-10 w-10 shrink-0 shadow-sm transition-transform hover:scale-110 active:scale-95"
-    title="Play and Process"
->
-</Button>
+/>
                             )}
                              {item.type === 'album' && (
                                 <Button size="sm" variant="ghost" disabled>
@@ -701,7 +695,9 @@ console.log("YouTube Search URL:", query);
                                         </div>
                                         <Card key={item.id} className="p-3 flex items-center gap-4 hover:bg-accent/5">
                                             {/* ... image et infos ... */}
-                                            <CustomPlayButton onClick={() => handleProcessTrack(item)} />
+                                            <CustomPlayButton onClick={() => handleProcessTrack(item)}
+                                                className="bg-primary/90 hover:bg-primary text-primary-foreground rounded-full h-10 w-10 shrink-0 shadow-sm transition-transform hover:scale-110 active:scale-95"
+ />
                                         </Card>
                                     </div>
                                 </Card>
@@ -729,16 +725,15 @@ console.log("YouTube Search URL:", query);
                                         {album.image ? (
                                             <img src={album.image} alt={album.name} className="w-full h-full object-cover" />
                                         ) : (
-                                            <div className="w-full h-full flex items-center justify-center bg-secondary">
-                                                <Disc className="w-12 h-12 text-muted-foreground" />
+                                            <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                                                <Disc className="w-6 h-6" />
                                             </div>
                                         )}
                                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                             {isLoadingAlbum ? (
                                                 <Loader2 className="w-8 h-8 text-white animate-spin" />
                                             ) : (
-                                                <div className="bg-green-500 rounded-full p-2">
-                                                    <PlayCircle className="w-6 h-6 text-white fill-white" />
+                                                <div >
                                                 </div>
                                             )}
                                         </div>
@@ -804,36 +799,52 @@ console.log("YouTube Search URL:", query);
                                     </thead>
                                     <tbody>
                                         {selectedAlbum.tracks.map((track) => (
-                                            <tr key={track.id} className="hover:bg-accent/50 group transition-colors">
-                                                <td className="p-2 text-muted-foreground">{track.trackNumber}</td>
-                                                <td className="p-2 font-medium">
-                                                    <div className="truncate text-foreground">{track.name}</div>
-                                                    <div className="truncate text-xs text-muted-foreground">
-                                                        {track.artists.map(a => a.name).join(', ')}
-                                                    </div>
-                                                </td>
-                                                <td className="p-2 text-right text-muted-foreground font-mono">
-                                                    {formatDuration(track.durationMs)}
-                                                </td>
-                                               
-                                                <td className="p-2 text-right">
-                                                    <CustomPlayButton 
-                                                        className="h-8 w-8 opacity-0 group-hover:opacity-100" 
-                                                        onClick={() => handleProcessTrack({
-                                                            id: track.id, 
-                                                            type: 'track', 
-                                                            name: track.name, 
-                                                            image_url: selectedAlbum.details.image,
-                                                            // Correction : On passe les vrais artistes au lieu de []
-                                                            artists: track.artists.map((a: any) => ({ id: a.id || '0', name: a.name })), 
-                                                            description: '', 
-                                                            external_url: track.spotifyUrl, 
-                                                            uri: ''
-                                                        } as SearchItem)} 
-                                                    />
-                                                </td>
-                                            </tr>
-                                        ))}
+    <tr 
+        key={track.id} 
+        // 1. On déplace le clic sur toute la ligne
+        onClick={() => handleProcessTrack({
+            id: track.id, 
+            type: 'track', 
+            name: track.name, 
+            image_url: selectedAlbum.details.image,
+            artists: track.artists.map((a: any) => ({ id: a.id || '0', name: a.name })), 
+            description: '', 
+            external_url: track.spotifyUrl, 
+            uri: ''
+        } as SearchItem)}
+        // 2. On ajoute cursor-pointer pour indiquer que c'est cliquable
+        className="hover:bg-accent/50 group transition-colors cursor-pointer"
+    >
+        <td className="p-2 text-muted-foreground">{track.trackNumber}</td>
+        <td className="p-2 font-medium">
+            <div className="truncate text-foreground">{track.name}</div>
+            <div className="truncate text-xs text-muted-foreground">
+                {track.artists.map(a => a.name).join(', ')}
+            </div>
+        </td>
+        <td className="p-2 text-right text-muted-foreground font-mono">
+            {formatDuration(track.durationMs)}
+        </td>
+        
+        <td className="p-2 text-right">
+            {/* 3. On garde le bouton pour le visuel, mais il n'a plus besoin de son propre onClick */}
+               <CustomPlayButton 
+                    className="h-8 w-8 opacity-0 group-hover:opacity-100" 
+                    onClick={() => handleProcessTrack({
+                        id: track.id, 
+                        type: 'track', 
+                        name: track.name, 
+                        image_url: selectedAlbum.details.image,
+                        // Correction : On passe les vrais artistes au lieu de []
+                        artists: track.artists.map((a: any) => ({ id: a.id || '0', name: a.name })), 
+                        description: '', 
+                        external_url: track.spotifyUrl, 
+                        uri: ''
+                    } as SearchItem)} 
+                />
+       </td>
+    </tr>
+            ))}
                                     </tbody>
                                 </table>
                             )}
@@ -886,21 +897,43 @@ console.log("YouTube Search URL:", query);
             {(shouldShowResultsSection || artistTracksView) && (
                 <section>
                     <div className="flex justify-between items-center pt-4 mb-4 border-b pb-2">
-                        <h2 className="text-xl font-medium">
-                           {artistTracksView ? `Artist: ${artistTracksView.artistName}` : "Search Results"}
-                        </h2>
+                      <div className="flex flex-col gap-1">
+  <div className="flex items-center gap-3">
+    {/* Bouton retour si on est dans la vue artiste */}
+    {artistTracksView && (
+      <Button 
+        variant="ghost" 
+        size="icon" 
+        onClick={() => setArtistTracksView(null)}
+        className="h-8 w-8 rounded-full hover:bg-accent"
+      >
+        <ArrowLeft className="w-4 h-4" />
+      </Button>
+    )}
+    
+    <h2 className="text-2xl font-bold tracking-tight">
+      {artistTracksView ? (
+        <span className="flex items-center gap-2">
+          <span className="text-muted-foreground font-normal">Artist:</span> 
+          {artistTracksView.artistName}
+        </span>
+      ) : (
+        "Search Results"
+      )}
+    </h2>
+  </div>
+
+  {/* Sous-titre dynamique pour donner du contexte */}
+  <p className="text-sm text-muted-foreground ml-1">
+    {artistTracksView 
+      ? `Showing top tracks and albums` 
+      : searchQuery 
+        ? `Top matches for "${searchQuery}"` 
+        : "Discover new music"}
+  </p>
+</div>
                         
-                        {artistTracksView !== null && (
-                            <Button 
-                                onClick={handleReturnToSearch} 
-                                variant="outline" 
-                                className="text-sm"
-                                disabled={isSearching}
-                            >
-                                <ArrowLeft className="w-4 h-4 mr-2" />
-                                Return to Search
-                            </Button>
-                        )}
+                   
                     </div>
                     
                     {!artistTracksView && (
