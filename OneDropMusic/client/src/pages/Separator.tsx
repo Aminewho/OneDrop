@@ -79,7 +79,7 @@ interface StemControl {
     hasLoadError: boolean;
 }
 
-const API_BASE_URL = "http://127.0.0.1:8081";
+const API_BASE_URL = "http://localhost:8081";
 
 const formatTime = (seconds: number): string => {
     if (isNaN(seconds) || seconds < 0) return "0:00";

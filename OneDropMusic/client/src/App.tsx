@@ -5,10 +5,8 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
 // Import du VideoStateProvider pour persister l'état
 // NOTE: L'extension de ce fichier pourrait être .jsx ou .tsx selon votre configuration
-import { VideoStateProvider } from "./context/VideoStateContext"; 
 
 // Import des composants et pages
 import NavBar from "@/components/NavBar";
@@ -16,7 +14,6 @@ import MusicPlayer from "@/components/MusicPlayer";
 import Videos from "@/pages/Videos";
 import Separator from "@/pages/Separator";
 import Library from "@/pages/Library";
-import Playlists from "@/pages/Playlists";
 import SpotifyAuthPage from "@/pages/SpotifyAuthPage";
 import SpotifySearchPage from './pages/SpotifySearchPage';  
 function Router() {
@@ -29,9 +26,8 @@ function Router() {
       <Route path="/" component={Videos} />
       <Route path="/separator" component={Separator} />
       <Route path="/library" component={Library} />
-      <Route path="/playlists" component={Playlists} />^
       <Route path="/spotify-callback" component={SpotifyAuthPage}/>
-       <Route path="/spotify-search" component={SpotifySearchPage}/>
+       <Route path="/search-spotify" component={SpotifySearchPage}/>
 
     </Switch>
   );

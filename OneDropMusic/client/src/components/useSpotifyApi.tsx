@@ -2,14 +2,16 @@ import { useState, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 
 // --- CONFIGURATION ---
-const CLIENT_ID = "b97d795e6dc744e493aa6d24169d125e"; 
-const REDIRECT_URI = "http://127.0.0.1:5001/spotify-callback"; 
+const CLIENT_ID = "b97d795e6dc744e493aa6d24169d125e";
+// REDIRECT_URI is intentionally NOT defined here — it is only needed in SpotifyAuthPage.tsx
+// for the initial auth code exchange. Token refresh does not require it.
 
 // --- ENDPOINTS ---
-// Backend proxy URL (Spring assumed to be on 8081, proxied via Vite/CORS setup)
-const BACKEND_API_BASE_URL = '/spotify'; 
-// Use the placeholder for token refresh/exchange (Spotify standard token endpoint)
-const TOKEN_URL = 'https://accounts.spotify.com/api/token'; 
+// Relative path — works in BOTH environments automatically:
+//   Dev  → Vite proxies /spotify → http://localhost:8081/spotify
+//   Prod → Spring Boot serves everything on 8081, /spotify resolves directly
+const BACKEND_API_BASE_URL = 'http://localhost:8081';
+const TOKEN_URL = 'https://accounts.spotify.com/api/token';
 
 
 // --- INTERFACES DE TYPES (Simplifiées pour l'exercice) ---
@@ -152,7 +154,7 @@ export const useSpotifyApi = () => {
     try {
         // Mise à jour de l'URL pour inclure le paramètre 'type'
         // Note : J'utilise 'type' ici pour correspondre à ton contrôleur Spring
-        const url = `${BACKEND_API_BASE_URL}/spotify-search?query=${encodeURIComponent(query)}`;
+        const url = `${BACKEND_API_BASE_URL}/search/spotify-search?query=${encodeURIComponent(query)}`;
         
         const response = await fetch(url, {
             method: 'GET',
@@ -201,7 +203,7 @@ export const useSpotifyApi = () => {
 
         try {
             // Endpoint Spring: /profile
-            const response = await fetch(`${BACKEND_API_BASE_URL}/profile`, {
+            const response = await fetch(`${BACKEND_API_BASE_URL}/search/profile`, {
                 headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
             });
 
@@ -227,7 +229,7 @@ export const useSpotifyApi = () => {
         if (!accessToken) throw new Error("No access token available.");
 
         // Endpoint Spring: /topArtists
-        const response = await fetch(`${BACKEND_API_BASE_URL}/topArtists`, {
+        const response = await fetch(`${BACKEND_API_BASE_URL}/search/topArtists`, {
             headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
         });
         
@@ -249,7 +251,7 @@ export const useSpotifyApi = () => {
         if (!accessToken) throw new Error("No access token available.");
 
         // Endpoint Spring: /followingArtists
-        const response = await fetch(`${BACKEND_API_BASE_URL}/followingArtists`, {
+        const response = await fetch(`${BACKEND_API_BASE_URL}/search/followingArtists`, {
             headers: { 'Authorization': `Bearer ${accessToken}` }
         });
         
@@ -271,8 +273,8 @@ export const useSpotifyApi = () => {
         if (!accessToken) throw new Error("No access token available.");
 
         try {
-            // Endpoint Spring: /artistsTopTracks (ID dans les headers)
-            const response = await fetch(`${BACKEND_API_BASE_URL}/artistsTopTracks`, {
+            // Endpoint Spring: /search/artistsTopTracks (ID dans les headers)
+            const response = await fetch(`${BACKEND_API_BASE_URL}/search/artistsTopTracks`, {
                 method: 'GET',
                 headers: { 
                     'Authorization': `Bearer ${accessToken}`,
@@ -308,7 +310,7 @@ export const useSpotifyApi = () => {
 
         try {
             // ✅ Endpoint Spring mis à jour : /artists/{id}/albums
-            const response = await fetch(`${BACKEND_API_BASE_URL}/artists/${artistId}/albums`, {
+            const response = await fetch(`${BACKEND_API_BASE_URL}/search/artists/${artistId}/albums`, {
                 method: 'GET',
                 headers: { 
                     // Seul l'Authorization et Content-Type sont nécessaires ici
@@ -344,7 +346,7 @@ export const useSpotifyApi = () => {
 
         try {
             // ✅ Endpoint Spring mis à jour : /albums/{id}/tracks
-            const response = await fetch(`${BACKEND_API_BASE_URL}/albums/${albumId}/tracks`, {
+            const response = await fetch(`${BACKEND_API_BASE_URL}/search/albums/${albumId}/tracks`, {
                 method: 'GET',
                 headers: { 
                     // Seul l'Authorization et Content-Type sont nécessaires ici

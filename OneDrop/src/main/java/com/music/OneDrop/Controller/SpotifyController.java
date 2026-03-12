@@ -8,6 +8,7 @@ import org.springframework.http.HttpHeaders;
 import com.music.OneDrop.Service.SpotifyService;
 
 @RestController
+@RequestMapping("/search")
 public class SpotifyController {
 
     @Autowired

@@ -6,10 +6,18 @@ import { useLocation } from "wouter";
 import { toast } from "react-hot-toast";
 
 // --- CONFIGURATION ---
-const CLIENT_ID = "b97d795e6dc744e493aa6d24169d125e"; 
-// L'URI de redirection doit correspondre EXACTEMENT à celle enregistrée dans le Dashboard Spotify
-const REDIRECT_URI = "http://127.0.0.1:5001/spotify-callback"; 
-const SCOPES = "user-read-private user-read-email playlist-read-private user-library-read user-follow-read user-top-read"; 
+const CLIENT_ID = "b97d795e6dc744e493aa6d24169d125e";
+
+// Dynamic REDIRECT_URI — adapts automatically to the current port.
+// Dev  → http://127.0.0.1:5001/spotify-callback  (Vite dev server)
+// Prod → http://127.0.0.1:8081/spotify-callback  (Spring Boot serves everything)
+//
+// ⚠️  Register BOTH URIs in your Spotify Developer Dashboard:
+//     http://127.0.0.1:5001/spotify-callback
+//     http://127.0.0.1:8081/spotify-callback
+const REDIRECT_URI = `http://127.0.0.1:${window.location.port || '8081'}/spotify-callback`;
+
+const SCOPES = "user-read-private user-read-email playlist-read-private user-library-read user-follow-read user-top-read";
 
 const AUTH_URL = 'https://accounts.spotify.com/authorize'; 
 const TOKEN_URL = 'https://accounts.spotify.com/api/token'; 
@@ -103,7 +111,7 @@ export default function SpotifyAuthPage() {
             localStorage.removeItem('spotify_code_verifier');
             setStatus('SUCCESS');
             toast.success("Spotify connecté sur localhost !");
-            setTimeout(() => setLocation('/spotify-search'), 1500); 
+            setTimeout(() => setLocation('/search-spotify'), 1500); 
         } catch (err) {
             setError("Erreur d'échange : " + (err instanceof Error ? err.message : "Inconnue"));
             setStatus('ERROR');

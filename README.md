@@ -1,6 +1,25 @@
 npx cross-env NODE_ENV=development npx tsx server/index.ts
 mvn spring-boot:run
 
+prod : 
+npm run build 
+=> copy /dist/public to /static
+mvn clean package
+java -jar C:\Users\THINKPAD\OneDrop\OneDrop\target\OneDrop-0.0.1-SNAPSHOT.jar
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Phase 1 — Prepare your assets
 Step 1: Build the React frontend
 Run npm run build → this generates a static ui/ folder. Your Spring Boot backend will serve these files directly, so you don't need a separate Node server.

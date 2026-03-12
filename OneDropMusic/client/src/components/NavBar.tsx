@@ -18,7 +18,7 @@ const YoutubeIcon = () => (
  const navItems = [
     // YouTube avec le logo rouge
     { path: "/", label: "Youtube", icon: YoutubeIcon }, 
-    { path: "/spotify-search", label: "Spotify", icon: SpotifyIcon },
+    { path: "/search-spotify", label: "Spotify", icon: SpotifyIcon },
     { path: "/separator", label: "Separator", icon: Scissors },
     { path: "/library", label: "Library", icon: Library },
 ];
