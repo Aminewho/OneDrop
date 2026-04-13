@@ -4,7 +4,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableAsync;
 
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = "com.music.OneDrop")
 @EnableAsync // 🛑 Active l'exécution asynchrone
 public class OneDropApplication {
 

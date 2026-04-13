@@ -20,7 +20,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Optional;
-@CrossOrigin(origins = "http://localhost:5001")
 @RestController
 @RequestMapping("/api/audio")
 public class AudioController {

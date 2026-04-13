@@ -29,6 +29,8 @@ Step 3: Package the backend JAR
 Run mvn package or ./gradlew bootJar → produces backend.jar. Test it standalone: java -jar backend.jar.
 
 Phase 2 — Tools download logic (Spring Boot)
+////+++++[ ] B — Design the license system first so it's baked in from the start
+
 Step 4: Add tools check on startup
 In your Spring Boot app, add a @Component with @PostConstruct that:
 
