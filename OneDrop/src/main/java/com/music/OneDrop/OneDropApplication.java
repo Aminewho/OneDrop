@@ -4,11 +4,14 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableAsync;
 
+import com.music.OneDrop.Service.AudioProcessorService;
+
 @SpringBootApplication(scanBasePackages = "com.music.OneDrop")
 @EnableAsync // 🛑 Active l'exécution asynchrone
 public class OneDropApplication {
 
 	public static void main(String[] args) {
+		AudioProcessorService.initPaths();
 		SpringApplication.run(OneDropApplication.class, args);
 	}
 

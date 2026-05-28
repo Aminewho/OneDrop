@@ -1,4 +1,4 @@
-package com.music.OneDrop.Service;
+   package com.music.OneDrop.Service;
 
 import com.google.api.services.youtube.YouTube;
 import com.google.api.services.youtube.model.SearchListResponse;
@@ -56,6 +56,7 @@ public class YoutubeService {
         YouTube.Videos.List videoListRequest = youTube.videos().list("snippet,contentDetails");
         videoListRequest.setKey(apiKey);
         videoListRequest.setId(videoIds); 
+        
         // Demander les champs 'snippet' (titre, chaîne, date, miniatures) et 'contentDetails' (durée)
         videoListRequest.setFields("items(id,snippet(title,channelTitle,publishedAt,thumbnails/default/url),contentDetails/duration)");
         
@@ -77,6 +78,7 @@ public class YoutubeService {
         if (video.getSnippet() != null) {
             dto.setTitle(video.getSnippet().getTitle());
             dto.setChannelTitle(video.getSnippet().getChannelTitle());
+            dto.setDuration(video.getContentDetails() != null ? video.getContentDetails().getDuration() : null);
             // Utiliser la miniature par défaut
             if (video.getSnippet().getThumbnails() != null && video.getSnippet().getThumbnails().getDefault() != null) {
                  dto.setThumbnailUrl(video.getSnippet().getThumbnails().getDefault().getUrl());

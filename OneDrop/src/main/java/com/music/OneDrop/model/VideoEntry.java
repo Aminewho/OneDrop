@@ -25,6 +25,11 @@ public class VideoEntry {
     @Column(columnDefinition = "CLOB")
     private String stemsJson; 
 
+    @Column(name = "bpm")
+private Double bpm;  // null = not detected yet, -1.0 = failed
+
+public Double getBpm() { return bpm; }
+public void setBpm(Double bpm) { this.bpm = bpm; }
     // --- Constructeur ---
     public VideoEntry() {
     }
