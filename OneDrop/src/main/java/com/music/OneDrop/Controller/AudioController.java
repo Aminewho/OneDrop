@@ -95,75 +95,80 @@ public class AudioController {
      * POST /api/audio/process
      * =========================================================
      */
-    @PostMapping("/process")
-    public ResponseEntity<String> processAudio(@RequestBody ProcessRequestDTO requestDTO) {
-        String videoId = requestDTO.getVideoId();
+  @PostMapping("/process")
+public ResponseEntity<String> processAudio(@RequestBody ProcessRequestDTO requestDTO) {
+    String videoId = requestDTO.getVideoId();
 
-        /*
-         * VALIDATION
-         */
-        if (videoId == null || videoId.isBlank() || requestDTO.getVideoTitle() == null || requestDTO.getVideoTitle().isBlank()) {
-            return new ResponseEntity<>("Missing videoId or videoTitle in request body.", HttpStatus.BAD_REQUEST);
-        }
-
-        Status currentStatus = statusManager.getStatus(videoId);
-
-        /*
-         * PREVENT DUPLICATE PROCESSING
-         */
-        if (currentStatus != null && currentStatus != Status.FAILED && currentStatus != Status.COMPLETED) {
-            return new ResponseEntity<>("Task for videoId " + videoId + " is already in progress: " + currentStatus, HttpStatus.ACCEPTED);
-        }
-
-        try {
-            /*
-             * CREATE OR UPDATE DATABASE ENTRY
-             */
-            Optional<VideoEntry> existingEntry = videoRepository.findById(videoId);
-            VideoEntry entryToSave;
-
-            if (existingEntry.isPresent()) {
-                /*
-                 * UPDATE EXISTING ENTRY
-                 */
-                entryToSave = existingEntry.get();
-                entryToSave.setStatus(Status.PENDING.name());
-                entryToSave.setVideoTitle(requestDTO.getVideoTitle());
-                entryToSave.setDuration(requestDTO.getDuration());
-                entryToSave.setProcessedAt(null);
-            } else {
-                /*
-                 * CREATE NEW ENTRY
-                 */
-                entryToSave = new VideoEntry();
-                entryToSave.setVideoId(videoId);
-                entryToSave.setVideoTitle(requestDTO.getVideoTitle());
-                entryToSave.setDuration(requestDTO.getDuration());
-                entryToSave.setStatus(Status.PENDING.name());
-                entryToSave.setProcessedAt(null);
-            }
-
-            /*
-             * SAVE TO DATABASE
-             */
-            videoRepository.save(entryToSave);
-
-            /*
-             * START ASYNC PROCESSING
-             */
-            audioProcessorService.startAudioProcessing(videoId);
-
-            return new ResponseEntity<>("Processing started asynchronously for videoId: " + videoId, HttpStatus.ACCEPTED);
-
-        } catch (Exception e) {
-            System.err.println("Error starting process for " + videoId + ": " + e.getMessage());
-            e.printStackTrace();
-            statusManager.updateStatus(videoId, Status.FAILED);
-
-            return new ResponseEntity<>("Internal server error when trying to start process. " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
-        }
+    /*
+     * VALIDATION
+     */
+    if (videoId == null || videoId.isBlank() || requestDTO.getVideoTitle() == null || requestDTO.getVideoTitle().isBlank()) {
+        return new ResponseEntity<>("Missing videoId or videoTitle in request body.", HttpStatus.BAD_REQUEST);
     }
 
+    /*
+     * CHECK IF ALREADY COMPLETED IN DATABASE
+     * Do this before checking the in-memory status manager, so it survives app restarts.
+     */
+    Optional<VideoEntry> existingEntry = videoRepository.findById(videoId);
+    if (existingEntry.isPresent() && Status.COMPLETED.name().equals(existingEntry.get().getStatus())) {
+        return new ResponseEntity<>(
+            "Video \"" + existingEntry.get().getVideoTitle() + "\" has already been processed.",
+            HttpStatus.CONFLICT   // 409 — clearly distinct from 202 (in-progress) and 400 (bad request)
+        );
+    }
+
+    /*
+     * PREVENT DUPLICATE IN-PROGRESS PROCESSING (in-memory check)
+     */
+    Status currentStatus = statusManager.getStatus(videoId);
+    if (currentStatus != null && currentStatus != Status.FAILED && currentStatus != Status.COMPLETED) {
+        return new ResponseEntity<>("Task for videoId " + videoId + " is already in progress: " + currentStatus, HttpStatus.ACCEPTED);
+    }
+
+    try {
+        /*
+         * CREATE OR UPDATE DATABASE ENTRY
+         */
+        VideoEntry entryToSave;
+
+        if (existingEntry.isPresent()) {
+            /*
+             * UPDATE EXISTING ENTRY (was FAILED — allow reprocessing)
+             */
+            entryToSave = existingEntry.get();
+            entryToSave.setStatus(Status.PENDING.name());
+            entryToSave.setVideoTitle(requestDTO.getVideoTitle());
+            entryToSave.setDuration(requestDTO.getDuration());
+            entryToSave.setProcessedAt(null);
+        } else {
+            /*
+             * CREATE NEW ENTRY
+             */
+            entryToSave = new VideoEntry();
+            entryToSave.setVideoId(videoId);
+            entryToSave.setVideoTitle(requestDTO.getVideoTitle());
+            entryToSave.setDuration(requestDTO.getDuration());
+            entryToSave.setStatus(Status.PENDING.name());
+            entryToSave.setProcessedAt(null);
+        }
+
+        videoRepository.save(entryToSave);
+
+        /*
+         * START ASYNC PROCESSING
+         */
+        audioProcessorService.startAudioProcessing(videoId);
+
+        return new ResponseEntity<>("Processing started asynchronously for videoId: " + videoId, HttpStatus.ACCEPTED);
+
+    } catch (Exception e) {
+        System.err.println("Error starting process for " + videoId + ": " + e.getMessage());
+        e.printStackTrace();
+        statusManager.updateStatus(videoId, Status.FAILED);
+        return new ResponseEntity<>("Internal server error: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+}
     /*
      * =========================================================
      * 2. GET PROCESS STATUS

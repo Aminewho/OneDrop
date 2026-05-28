@@ -4,62 +4,48 @@ import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { toast } from "react-hot-toast"; // Assurez-vous d'avoir installé react-hot-toast
+import { toast } from "react-hot-toast";
 
-// --- 1. CONSTANTES & TYPES ---
 const API_BASE_URL = "http://localhost:8081";
 
-// Clés Local Storage
-const LS_SEARCH_QUERY_KEY = 'videoSearchQuery_page';
-const LS_VIDEOS_KEY = 'videoResults_page';
-const LS_TASK_STATUSES_KEY = 'videoTaskStatuses_page';
+const LS_SEARCH_QUERY_KEY   = 'videoSearchQuery_page';
+const LS_VIDEOS_KEY         = 'videoResults_page';
+const LS_TASK_STATUSES_KEY  = 'videoTaskStatuses_page';
 
-// Type de statut (doit correspondre au backend TaskStatusManager.java)
 export type TaskStatus = 'PENDING' | 'DOWNLOADING' | 'SEPARATING' | 'FAILED' | 'COMPLETED' | 'UNKNOWN' | undefined;
-// Interfaces
+
 interface YoutubeApiResponse {
-    videoId: string;
-    title: string;
-    channelTitle: string;
-    thumbnailUrl: string;
-    publishedAt: string;
-    duration: string;
+    videoId: string;
+    title: string;
+    channelTitle: string;
+    thumbnailUrl: string;
+    publishedAt: string;
+    duration: string;
 }
 
 interface Video {
-    id: string;
-    title: string;
-    thumbnail: string;
-    duration: string;
-    channel: string;
-    uploadedAt: string;
+    id: string;
+    title: string;
+    thumbnail: string;
+    duration: string;
+    channel: string;
+    uploadedAt: string;
 }
 
-const filterCategories = ['All', 'Reggae', 'Hip Hop', 'Rock', 'Pop'];
-
-// --- 2. FONCTION UTILITAIRE : LOCAL STORAGE HOOK ---
-/**
- * Un hook simple pour gérer l'état avec persistance dans localStorage.
- */
 function useLocalStorageState<T>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] {
-    // Fonction pour charger l'état initial (similaire à loadInitialState précédent)
     const loadInitialState = (): T => {
         try {
             const storedValue = localStorage.getItem(key);
-            if (storedValue) {
-                // Utilisation de JSON.parse pour récupérer les objets/arrays
-                return JSON.parse(storedValue) as T;
-            }
+            if (storedValue) return JSON.parse(storedValue) as T;
         } catch (error) {
             console.error(`Error loading state from localStorage for key ${key}:`, error);
-            localStorage.removeItem(key); // Nettoyer les données corrompues
+            localStorage.removeItem(key);
         }
         return defaultValue;
     };
 
     const [state, setState] = useState<T>(loadInitialState);
 
-    // Effet pour persister l'état dans localStorage à chaque changement
     useEffect(() => {
         try {
             localStorage.setItem(key, JSON.stringify(state));
@@ -71,279 +57,254 @@ function useLocalStorageState<T>(key: string, defaultValue: T): [T, React.Dispat
     return [state, setState];
 }
 
-// --- 3. FONCTION UTILITAIRE : FORMAT DURATION ---
 function formatDuration(isoDuration: string | null | undefined): string {
-    if (!isoDuration || typeof isoDuration !== 'string') return 'N/A';
-    const regex = /PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/;
-    const matches = isoDuration.match(regex);
-    if (!matches) return 'N/A';
-
-    const hours = parseInt(matches[1] || '0', 10);
-    const minutes = parseInt(matches[2] || '0', 10);
-    const seconds = parseInt(matches[3] || '0', 10);
-
-    const parts: string[] = [];
-    if (hours > 0) {
-        parts.push(hours.toString());
-        parts.push(minutes.toString().padStart(2, '0'));
-    } else {
-        parts.push(minutes.toString());
-    }
-    parts.push(seconds.toString().padStart(2, '0'));
-
-    return parts.join(':');
+    if (!isoDuration || typeof isoDuration !== 'string') return 'N/A';
+    const regex = /PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/;
+    const matches = isoDuration.match(regex);
+    if (!matches) return 'N/A';
+    const hours   = parseInt(matches[1] || '0', 10);
+    const minutes = parseInt(matches[2] || '0', 10);
+    const seconds = parseInt(matches[3] || '0', 10);
+    const parts: string[] = [];
+    if (hours > 0) { parts.push(hours.toString()); parts.push(minutes.toString().padStart(2, '0')); }
+    else           { parts.push(minutes.toString()); }
+    parts.push(seconds.toString().padStart(2, '0'));
+    return parts.join(':');
 }
-// -----------------------------------------------------------------------------
 
 export default function Videos() {
-    // 🛑 Utilisation du hook useLocalStorageState pour la persistance
-    const [searchQuery, setSearchQuery] = useLocalStorageState<string>(LS_SEARCH_QUERY_KEY, ""); 
-    const [videos, setVideos] = useLocalStorageState<Video[]>(LS_VIDEOS_KEY, []);
-    // Le statut des tâches est un objet, donc nous utilisons l'objet vide {} par défaut
-    const [taskStatuses, setTaskStatuses] = useLocalStorageState<Record<string, TaskStatus>>(LS_TASK_STATUSES_KEY, {});
+    const [searchQuery,   setSearchQuery]   = useLocalStorageState<string>(LS_SEARCH_QUERY_KEY, "");
+    const [videos,        setVideos]        = useLocalStorageState<Video[]>(LS_VIDEOS_KEY, []);
+    const [taskStatuses,  setTaskStatuses]  = useLocalStorageState<Record<string, TaskStatus>>(LS_TASK_STATUSES_KEY, {});
 
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [selectedFilter, setSelectedFilter] = useState("All");
+    const [isLoading,     setIsLoading]     = useState(false);
+    const [error,         setError]         = useState<string | null>(null);
+    const [alertMessage,  setAlertMessage]  = useState<string | null>(null); // for 409 / backend messages
 
-    // --- Fonction de Récupération des Vidéos ---
-    const fetchVideos = useCallback(async (query: string) => {
-        if (!query.trim()) {
-            setVideos([]);
-            setError("Please enter a search term.");
-            return;
-        }
+    // ─────────────────────────────────────────────────────────────────────────
+    // FIX 1: On mount, clean up stale entries so localStorage never grows unbounded
+    //
+    //  - COMPLETED / FAILED  → remove entirely (library page has the real status)
+    //  - PENDING / DOWNLOADING / SEPARATING → remove too: if the app was closed
+    //    mid-processing the backend has no memory of these tasks after restart,
+    //    so they would poll forever and never resolve.
+    // ─────────────────────────────────────────────────────────────────────────
+    useEffect(() => {
+        setTaskStatuses(prev => {
+            const cleaned: Record<string, TaskStatus> = {};
+            Object.entries(prev).forEach(([videoId, status]) => {
+                // Keep ONLY tasks that are actively in-progress right now.
+                // Everything else is either done (library shows it) or stale.
+                if (status === 'PENDING' || status === 'DOWNLOADING' || status === 'SEPARATING') {
+                    // These survive only if the backend still knows about them.
+                    // We can't verify that synchronously on mount, so we drop them.
+                    // The user can re-submit if needed; the backend deduplicates anyway.
+                }
+                // Don't add to cleaned → effectively removes all terminal + stale states
+            });
+            return cleaned; // start fresh every app launch
+        });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // run once on mount only
 
-        setIsLoading(true);
-        setError(null);
-        setVideos([]); 
-        
-        try {
-            const encodedQuery = encodeURIComponent(query);
-            const url = `${API_BASE_URL}/search/youtube?q=${encodedQuery}`;
+    const fetchVideos = useCallback(async (query: string) => {
+        if (!query.trim()) { setVideos([]); setError("Please enter a search term."); return; }
+        setIsLoading(true); setError(null); setVideos([]);
+        try {
+            const response = await fetch(`${API_BASE_URL}/search/youtube?q=${encodeURIComponent(query)}`,
+                { method: 'GET', headers: { 'Content-Type': 'application/json' } });
+            if (!response.ok) throw new Error(`API error: ${response.status}`);
+            const rawData: YoutubeApiResponse[] = await response.json();
+            setVideos(rawData.map(v => ({
+                id:         v.videoId,
+                title:      v.title,
+                thumbnail:  v.thumbnailUrl,
+                duration:   formatDuration(v.duration),
+                channel:    v.channelTitle,
+                uploadedAt: new Date(v.publishedAt).toLocaleDateString(),
+            })));
+        } catch (err) {
+            setError(`Failed to fetch videos: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [setVideos]);
 
-            const response = await fetch(url, { method: 'GET', headers: { 'Content-Type': 'application/json' } });
+    const handleProcessVideo = useCallback(async (videoId: string) => {
+        const currentStatus = taskStatuses[videoId];
+        if (currentStatus && currentStatus !== 'FAILED') {
+            toast.error(`Processing is already ${currentStatus.toLowerCase()} for this video.`);
+            return;
+        }
 
-            if (!response.ok) {
-                throw new Error(`API error: ${response.status}`);
-            }
-            
-            const rawData: YoutubeApiResponse[] = await response.json(); 
+        setTaskStatuses(prev => ({ ...prev, [videoId]: 'PENDING' }));
+        const toastId = toast.loading(`Launching processing for ${videoId}...`);
 
-            const formattedVideos: Video[] = rawData.map((video: YoutubeApiResponse) => ({
-                id: video.videoId, 
-                title: video.title,
-                thumbnail: video.thumbnailUrl, 
-                duration: formatDuration(video.duration), // Utilisez formatDuration ici
-                channel: video.channelTitle,
-                uploadedAt: new Date(video.publishedAt).toLocaleDateString(), 
-            }));
+        try {
+            const video   = videos.find(v => v.id === videoId);
+            const response = await fetch(`${API_BASE_URL}/api/audio/process`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ videoId, duration: video?.duration, videoTitle: video?.title }),
+            });
+            if (response.status === 409) {
+                const msg = await response.text();
+                console.log('[409] Already processed:', msg);
+                toast.dismiss(toastId);
+                setAlertMessage(msg);
+                setTaskStatuses(prev => { const n = {...prev}; delete n[videoId]; return n; });
+                return;
+            }
+            if (!response.ok) {
+                const errorBody = await response.text();
+                throw new Error(`${response.status} - ${errorBody}`);
+            }
+            toast.success('Processing accepted. Tracking status...', { id: toastId });
+        } catch (err) {
+            setTaskStatuses(prev => {
+                const next = { ...prev };
+                delete next[videoId]; // FIX 2: remove on failure, don't leave FAILED forever
+                return next;
+            });
+            toast.error(`Failed to start processing.`, { id: toastId });
+        }
+    }, [taskStatuses, setTaskStatuses, videos]);
 
-            setVideos(formattedVideos);
+    const pollTaskStatus = useCallback(async (videoId: string, currentStatus: TaskStatus) => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/audio/status?videoId=${encodeURIComponent(videoId)}`);
 
-        } catch (err) {
-            console.error("Fetch error:", err);
-            setError(`Failed to fetch videos. Details: ${err instanceof Error ? err.message : 'An unknown error occurred'}`);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [setVideos]); // Dépendance ajoutée pour le hook de localStorage
+            if (response.status === 404) {
+                // Task disappeared — clean up and stop polling
+                setTaskStatuses(prev => { const n = {...prev}; delete n[videoId]; return n; });
+                toast.error(`Task disappeared for ${videoId}.`, { id: videoId });
+                return true;
+            }
+            if (!response.ok) throw new Error(`Status API error: ${response.status}`);
 
-    
-    // --- FONCTION PRINCIPALE : Lancement du Traitement Audio ---
-    const handleProcessVideo = useCallback(async (videoId: string) => {
-        const currentStatus = taskStatuses[videoId];
-        
-        if (currentStatus && (currentStatus !== 'FAILED' && currentStatus !== undefined)) {
-            toast.error(`Processing is already ${currentStatus.toLowerCase()} for this video.`);
-            return;
-        }
+            const status = (await response.text()).trim() as TaskStatus;
 
-        // 1. Mettre à jour l'état local pour démarrer l'observation
-        setTaskStatuses(prev => ({ ...prev, [videoId]: 'PENDING' }));
-        const toastId = toast.loading(`Lancement du traitement pour ${videoId}...`);
+            if (status !== currentStatus) {
+                setTaskStatuses(prev => ({ ...prev, [videoId]: status }));
+                if      (status === 'DOWNLOADING') toast.loading('Downloading audio...', { id: videoId });
+                else if (status === 'SEPARATING')  toast.loading('Separating audio tracks...', { id: videoId });
+            }
 
-        try {
-            // Format de l'URL pour le POST : /process?videoId=...
-            const encodedVideoId = encodeURIComponent(videoId);
-            const url = `${API_BASE_URL}/api/audio/process`; 
+            if (status === 'COMPLETED') {
+                toast.success(`Processing complete for ${videoId}!`, { id: videoId });
+                // ─────────────────────────────────────────────────────────────
+                // FIX 2: Remove terminal statuses from localStorage immediately.
+                // The library page fetches the real status from the DB anyway.
+                // This keeps localStorage lean regardless of how long the app runs.
+                // ─────────────────────────────────────────────────────────────
+                setTaskStatuses(prev => { const n = {...prev}; delete n[videoId]; return n; });
+                return true;
+            }
+            if (status === 'FAILED') {
+                toast.error(`Processing failed for ${videoId}.`, { id: videoId });
+                // Remove FAILED too — don't accumulate dead entries
+                setTaskStatuses(prev => { const n = {...prev}; delete n[videoId]; return n; });
+                return true;
+            }
 
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ videoId: videoId ,duration: videos.find(v => v.id === videoId)?.duration,videoTitle: videos.find(v => v.id === videoId)?.title
+            return false;
+        } catch (error) {
+            console.error(`Polling failed for ${videoId}:`, error);
+            setTaskStatuses(prev => { const n = {...prev}; delete n[videoId]; return n; });
+            toast.error(`Polling failed for ${videoId}.`, { id: videoId });
+            return true;
+        }
+    }, [setTaskStatuses]);
 
-                }) // Envoyer le videoId dans le corps de la requête
-            });
+    // Polling interval — only for genuinely active tasks
+    useEffect(() => {
+        const activeTasks = Object.entries(taskStatuses).filter(([, s]) =>
+            s === 'PENDING' || s === 'DOWNLOADING' || s === 'SEPARATING'
+        );
+        if (activeTasks.length === 0) return;
 
-            if (!response.ok) {
-                const errorBody = await response.text();
-                throw new Error(`Server failed to start processing: ${response.status} - ${errorBody}`);
-            }
-            
-            // 2. Succès : Le back-end a accepté la tâche et l'a lancée en ASYNCHRONE.
-            toast.success(`Traitement accepté (202 Accepted). Démarrage du suivi de statut.`, { id: toastId });
+        const intervalId = setInterval(() => {
+            activeTasks.forEach(([videoId, status]) => pollTaskStatus(videoId, status as TaskStatus));
+        }, 3000);
 
-        } catch (err) {
-            console.error("Process initiation error:", err);
-            setTaskStatuses(prev => ({ ...prev, [videoId]: 'FAILED' }));
-            toast.error(`Échec du lancement du traitement.`, { id: toastId });
-        }
-    }, [taskStatuses, setTaskStatuses]); // Dépendance ajoutée pour le hook de localStorage
+        return () => clearInterval(intervalId);
+    }, [taskStatuses, pollTaskStatus]);
 
-    // --- LOGIQUE DE POLLING DE STATUT ---
-    const pollTaskStatus = useCallback(async (videoId: string, currentStatus: TaskStatus) => {
-        
-        // Format de l'URL pour le GET : /status?videoId=...
-        const encodedVideoId = encodeURIComponent(videoId);
-        const url = `${API_BASE_URL}/api/audio/status?videoId=${encodedVideoId}`; 
-        
-        try {
-            const response = await fetch(url);
-            
-            if (response.status === 404) {
-                // Tâche non trouvée (le back-end renvoie UNKNOWN/404)
-                if (currentStatus !== undefined) {
-                    // Si on était en train de suivre la tâche et qu'elle disparaît, c'est un échec
-                    setTaskStatuses(prev => ({ ...prev, [videoId]: 'FAILED' }));
-                    toast.error(`Status check failed for ${videoId}. Task disappeared.`, { id: videoId });
-                    return true; // Arrêter le polling
-                }
-                return false; // Continuer, peut-être que le POST n'a pas encore mis à jour la map
-            }
+    interface SearchEvent extends React.FormEvent<HTMLFormElement> {}
+    const handleSearch = (e: SearchEvent): void => { e.preventDefault(); fetchVideos(searchQuery); };
 
-            if (!response.ok) { 
-                throw new Error(`Status API failed with status: ${response.status}`);
-            }
-            
-            // Récupérer le corps de la réponse comme texte (chaîne de statut: PENDING, DOWNLOADING, etc.)
-            const rawStatus: string = await response.text();
-            const status = rawStatus.trim() as TaskStatus; 
-            
-            const validStatuses: TaskStatus[] = ['PENDING', 'DOWNLOADING', 'SEPARATING', 'FAILED', 'COMPLETED', 'UNKNOWN', undefined];
-            if (!validStatuses.includes(status)) {
-                 throw new Error(`Invalid status received: ${rawStatus}`);
-            }
-            
-            // Si le statut a changé, mettre à jour le front-end
-            if (status !== currentStatus) {
-                setTaskStatuses(prev => ({ ...prev, [videoId]: status }));
-                
-                if (status === 'SEPARATING') {
-                    toast.loading('Separating audio tracks (Spleeter)...', { id: videoId });
-                } else if (status === 'DOWNLOADING') {
-                    toast.loading('Downloading audio...', { id: videoId });
-                } else {
-                    toast.loading(`Status update: ${status}...`, { id: videoId });
-                }
-            }
-            
-            if (status === 'COMPLETED') {
-                toast.success(`Processing COMPLETE for ${videoId}!`, { id: videoId });
-                return true; // Polling terminé
-            }
-            if (status === 'FAILED') {
-                toast.error(`Processing FAILED for ${videoId}.`, { id: videoId });
-                return true; // Polling terminé
-            }
-            
-            return false; // Continuer le polling
-            
-        } catch (error) {
-            console.error(`Polling failed for ${videoId}:`, error);
-            // Marquer l'échec seulement si c'est un échec réseau ou d'API critique
-            setTaskStatuses(prev => ({ ...prev, [videoId]: 'FAILED' }));
-            toast.error(`Polling failed for ${videoId}. Check console.`, { id: videoId });
-            return true; // Arrêter le polling
-        }
-    }, [setTaskStatuses]); // Dépendance ajoutée pour le hook de localStorage
+    return (
+        <div className="min-h-screen bg-background">
+            {/* ── Backend alert modal (409 / already processed) ── */}
+            {alertMessage && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+                    onClick={() => setAlertMessage(null)}>
+                    <div className="bg-[#1c1c1e] border border-white/10 rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4"
+                        onClick={e => e.stopPropagation()}>
+                        <div className="flex items-start gap-3 mb-4">
+                            <div className="w-8 h-8 rounded-full bg-amber-500/15 flex items-center justify-center shrink-0 mt-0.5">
+                                <span className="text-amber-400 text-sm font-bold">!</span>
+                            </div>
+                            <div>
+                                <p className="text-sm font-semibold text-white mb-1">Already Processed</p>
+                                <p className="text-sm text-gray-400">{alertMessage}</p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setAlertMessage(null)}
+                            className="w-full py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-sm font-semibold transition-all active:scale-95">
+                            OK
+                        </button>
+                    </div>
+                </div>
+            )}
+            <div className="px-6 py-6 space-y-6">
+                <form onSubmit={handleSearch} className="flex items-center gap-4">
+                    <div className="relative flex-1 max-w-md">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Search videos (e.g., Bob Marley)..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="pl-10"
+                            data-testid="input-search"
+                        />
+                    </div>
+                    <Button type="submit" data-testid="button-search" disabled={isLoading || searchQuery.trim() === ""}>
+                        {isLoading ? 'Searching...' : 'Search'}
+                    </Button>
+                </form>
 
-    // --- GESTION DE L'INTERVALLE DE POLLING ---
-    useEffect(() => {
-        // Polling loop pour toutes les tâches en cours
-        const activeTasks = Object.entries(taskStatuses).filter(([, status]) => 
-            status === 'DOWNLOADING' || status === 'SEPARATING' || status === 'PENDING'
-        );
-
-        if (activeTasks.length === 0) return;
-
-        const intervalId = setInterval(() => {
-            activeTasks.forEach(([videoId, status]) => {
-                // On utilise `status as TaskStatus` pour lever l'erreur TypeScript si le status est undefined
-                pollTaskStatus(videoId, status as TaskStatus);
-            });
-        }, 3000); // Polling toutes les 3 secondes
-
-        return () => clearInterval(intervalId);
-    }, [taskStatuses, pollTaskStatus]);
-
-    // Gère la soumission du formulaire de recherche
-    interface SearchEvent extends React.FormEvent<HTMLFormElement> {}
-
-    const handleSearch = (e: SearchEvent): void => {
-      e.preventDefault();
-      fetchVideos(searchQuery); 
-    };
-
-    return (
-        <div className="min-h-screen bg-background">
-            <div className="px-6 py-6 space-y-6">
-                
-                {/* Barre de Recherche et Filtres */}
-                <form onSubmit={handleSearch} className="flex items-center gap-4">
-                    <div className="relative flex-1 max-w-md">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                            placeholder="Search videos (e.g., Bob Marley)..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-10"
-                            data-testid="input-search"
-                        />
-                    </div>
-                    <Button type="submit" data-testid="button-search" disabled={isLoading || searchQuery.trim() === ""}>
-                        {isLoading ? 'Searching...' : 'Search'}
-                    </Button>
-                </form>
-                
-
-                {/* Affichage des Vidéos */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    
-                    {error && <p className="text-red-500 col-span-full">{error}</p>}
-                    
-                    {isLoading ? (
-                        Array.from({ length: 8 }).map((_, index) => (
-                            <div key={`skeleton-${index}`} className="space-y-3">
-                                <Skeleton className="h-[225px] w-full rounded-xl" />
-                                <div className="space-y-2">
-                                    <Skeleton className="h-4 w-[75%]" />
-                                    <Skeleton className="h-4 w-[50%]" />
-                                </div>
-                            </div>
-                        ))
-                    ) : (
-                        videos.map((video) => (
-                            <VideoCard
-                                key={video.id}
-                                video={video}
-                                onProcess={handleProcessVideo} 
-                                // Transmission du statut (undefined si non existant)
-                                taskStatus={taskStatuses[video.id] || undefined} 
-                            />
-                        ))
-                    )}
-                    
-                    {/* Messages d'état */}
-                    {!isLoading && videos.length === 0 && !error && searchQuery && (
-                        <p className="text-muted-foreground col-span-full">No videos found for "{searchQuery}". Try a different search.</p>
-                    )}
-                    
-                    {!isLoading && videos.length === 0 && !error && !searchQuery && (
-                        <p className="text-muted-foreground col-span-full">Enter a term and click "Search" to find videos.</p>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {error && <p className="text-red-500 col-span-full">{error}</p>}
+                    {isLoading ? (
+                        Array.from({ length: 8 }).map((_, i) => (
+                            <div key={i} className="space-y-3">
+                                <Skeleton className="h-[225px] w-full rounded-xl" />
+                                <div className="space-y-2">
+                                    <Skeleton className="h-4 w-[75%]" />
+                                    <Skeleton className="h-4 w-[50%]" />
+                                </div>
+                            </div>
+                        ))
+                    ) : (
+                        videos.map(video => (
+                            <VideoCard
+                                key={video.id}
+                                video={video}
+                                onProcess={handleProcessVideo}
+                                taskStatus={taskStatuses[video.id] || undefined}
+                            />
+                        ))
+                    )}
+                    {!isLoading && videos.length === 0 && !error && searchQuery && (
+                        <p className="text-muted-foreground col-span-full">No videos found for "{searchQuery}".</p>
+                    )}
+                    {!isLoading && videos.length === 0 && !error && !searchQuery && (
+                        <p className="text-muted-foreground col-span-full">Enter a term and click "Search" to find videos.</p>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
 }
