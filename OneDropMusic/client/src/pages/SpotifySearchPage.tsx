@@ -14,6 +14,7 @@ import {
     UserProfile, 
     Artist 
 } from '../components/useSpotifyApi'; 
+import AlertModal from "@/components/AlertModal";
 
 // --- Interfaces ---
 
@@ -148,7 +149,7 @@ const [taskStatuses, setTaskStatuses] = useState<Record<string, TaskStatus>>({})
 
     // --- PROCESSING STATE (Youtube + Spleeter) ---
     const [activeProcessingTrack, setActiveProcessingTrack] = useState<ProcessingTrackState | null>(null);
-
+    const [alertMessage, setAlertMessage] = useState<string | null>(null);
     const [, setLocation] = useLocation();
     
     // Hooks Spotify
@@ -315,28 +316,36 @@ console.log("YouTube Search URL:", query);
     const videoId = activeProcessingTrack.youtubeId;
 
     setActiveProcessingTrack(prev => prev ? ({ ...prev, isSendingToSpleeter: true }) : null);
-    
-    // Set status to PENDING so the useEffect starts polling
     setTaskStatuses(prev => ({ ...prev, [videoId]: 'PENDING' }));
-    
+
     const toastId = toast.loading("Launching Spleeter...");
 
     try {
         const response = await fetch(`${BACKEND_BASE_URL}/api/audio/process`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
+            body: JSON.stringify({
                 videoId: videoId,
                 videoTitle: activeProcessingTrack.spotifyTrack.name,
-                duration: "0" 
+                duration: "0"
             })
         });
+
+        if (response.status === 409) {
+            const msg = await response.text();
+            console.log('[409] Already processed:', msg);
+            toast.dismiss(toastId);
+            setTaskStatuses(prev => { const n = {...prev}; delete n[videoId]; return n; });
+            setAlertMessage(msg);
+            return;
+        }
 
         if (!response.ok) throw new Error("Server rejected request");
 
         toast.success("Task queued successfully", { id: toastId });
+
     } catch (error) {
-        setTaskStatuses(prev => ({ ...prev, [videoId]: 'FAILED' }));
+        setTaskStatuses(prev => { const n = {...prev}; delete n[videoId]; return n; });
         toast.error("Failed to start spleeter", { id: toastId });
     } finally {
         setActiveProcessingTrack(prev => prev ? ({ ...prev, isSendingToSpleeter: false }) : null);
@@ -521,7 +530,12 @@ console.log("YouTube Search URL:", query);
                         <X className="w-5 h-5" />
                     </Button>
                 </div>
-
+<AlertModal
+    message={alertMessage}
+    onClose={() => setAlertMessage(null)}
+    title="Already Processed"
+    variant="warning"
+/>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Left Column: YouTube Player with Auto-start */}
                     <div className="aspect-video bg-black rounded-lg overflow-hidden shadow-lg border border-border">

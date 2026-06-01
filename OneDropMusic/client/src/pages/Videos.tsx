@@ -5,6 +5,7 @@ import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "react-hot-toast";
+import AlertModal from "@/components/AlertModal";
 
 const API_BASE_URL = "http://localhost:8081";
 
@@ -235,29 +236,13 @@ export default function Videos() {
 
     return (
         <div className="min-h-screen bg-background">
-            {/* ── Backend alert modal (409 / already processed) ── */}
-            {alertMessage && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-                    onClick={() => setAlertMessage(null)}>
-                    <div className="bg-[#1c1c1e] border border-white/10 rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4"
-                        onClick={e => e.stopPropagation()}>
-                        <div className="flex items-start gap-3 mb-4">
-                            <div className="w-8 h-8 rounded-full bg-amber-500/15 flex items-center justify-center shrink-0 mt-0.5">
-                                <span className="text-amber-400 text-sm font-bold">!</span>
-                            </div>
-                            <div>
-                                <p className="text-sm font-semibold text-white mb-1">Already Processed</p>
-                                <p className="text-sm text-gray-400">{alertMessage}</p>
-                            </div>
-                        </div>
-                        <button
-                            onClick={() => setAlertMessage(null)}
-                            className="w-full py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-sm font-semibold transition-all active:scale-95">
-                            OK
-                        </button>
-                    </div>
-                </div>
-            )}
+            {/* ── Backend alert modal ── */}
+            <AlertModal
+                message={alertMessage}
+                onClose={() => setAlertMessage(null)}
+                title="Already Processed"
+                variant="warning"
+            />
             <div className="px-6 py-6 space-y-6">
                 <form onSubmit={handleSearch} className="flex items-center gap-4">
                     <div className="relative flex-1 max-w-md">

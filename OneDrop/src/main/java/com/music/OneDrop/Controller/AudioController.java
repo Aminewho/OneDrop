@@ -4,6 +4,7 @@ import com.music.OneDrop.Dto.ProcessRequestDTO;
 import com.music.OneDrop.Service.AudioProcessorService;
 import com.music.OneDrop.Service.TaskStatusManager;
 import com.music.OneDrop.Service.TaskStatusManager.Status;
+import com.music.OneDrop.Service.VideoDeletionService;
 import com.music.OneDrop.model.VideoEntry;
 import com.music.OneDrop.repository.VideoRepository;
 
@@ -35,6 +36,7 @@ public class AudioController {
      */
     private final AudioProcessorService audioProcessorService;
     private final TaskStatusManager statusManager;
+    private final VideoDeletionService videoDeletionService;
     private final VideoRepository videoRepository;
 
     /*
@@ -65,10 +67,12 @@ public class AudioController {
     public AudioController(
             AudioProcessorService audioProcessorService,
             TaskStatusManager statusManager,
+            VideoDeletionService videoDeletionService,
             VideoRepository videoRepository
     ) {
         this.audioProcessorService = audioProcessorService;
         this.statusManager = statusManager;
+        this.videoDeletionService = videoDeletionService;
         this.videoRepository = videoRepository;
 
         /*
@@ -213,6 +217,26 @@ public ResponseEntity<String> processAudio(@RequestBody ProcessRequestDTO reques
             System.err.println("Error retrieving processed videos list: " + e.getMessage());
             e.printStackTrace();
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @DeleteMapping("/videos/{videoId}")
+    public ResponseEntity<String> deleteVideo(@PathVariable String videoId) {
+        try {
+            videoDeletionService.deleteVideo(videoId);
+            return ResponseEntity.ok("Deleted video " + videoId + " and its stored audio files.");
+        } catch (IllegalArgumentException e) {
+            String message = e.getMessage();
+            if (message != null && message.startsWith("Video not found")) {
+                return new ResponseEntity<>(message, HttpStatus.NOT_FOUND);
+            }
+            return new ResponseEntity<>(message, HttpStatus.BAD_REQUEST);
+        } catch (IllegalStateException e) {
+            return new ResponseEntity<>(e.getMessage(), HttpStatus.CONFLICT);
+        } catch (Exception e) {
+            System.err.println("Error deleting video " + videoId + ": " + e.getMessage());
+            e.printStackTrace();
+            return new ResponseEntity<>("Internal server error while deleting video.", HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
