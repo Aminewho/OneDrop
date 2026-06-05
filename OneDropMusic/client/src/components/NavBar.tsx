@@ -53,7 +53,7 @@ const YoutubeIcon = () => (
 
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" data-testid="button-profile">
-            <div className="w-8 h-8 rounded-full bg-primary/20 text-primary flex items-center justify-center font-semibold text-sm">
+            <div className="w-8 h-8 rounded-full bg-accent text-accent-foreground flex items-center justify-center font-semibold text-sm">
               U
             </div>
           </Button>

@@ -183,16 +183,17 @@ export default function Library() {
               </div>
             ))
           ) : error ? (
-            <div className="text-center py-10 text-red-500">{error}</div>
-          ) : filteredLibrary.length === 0 ? (
+<div className="text-center py-10 text-destructive">
+  {error}
+</div>          ) : filteredLibrary.length === 0 ? (
             <div className="text-center py-10 text-muted-foreground">
               Aucune piste trouvée. Commencez par traiter une vidéo dans l'onglet Recherche.
             </div>
           ) : (
             filteredLibrary.map((track) => (
-              <Card
+             <Card
                 key={track.id}
-                className="hover-elevate transition-all duration-200 hover:bg-accent/5"
+                className="hover-elevate transition-all duration-200 hover:bg-accent"
               >
                 <div className="flex items-center gap-4 p-4">
                   <div
@@ -212,8 +213,8 @@ export default function Library() {
                     />
                     <Music className="w-6 h-6 text-muted-foreground hidden absolute" />
                     {track.status === "COMPLETED" && (
-                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/30 transition-opacity">
-                        <Play className="w-6 h-6 text-white fill-current" />
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-background/40 backdrop-blur-sm transition-opacity">
+                        <Play className="w-6 h-6 text-foreground fill-current" />
                       </div>
                     )}
                   </div>
@@ -279,3 +280,4 @@ export default function Library() {
     </div>
   );
 }
+

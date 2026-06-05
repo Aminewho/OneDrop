@@ -79,7 +79,16 @@ export default function VideoCard({ video, onView, onProcess, taskStatus }: Vide
 
     return (
         <div className="group cursor-pointer" data-testid={`card-video-${video.id}`}>
-            <div className="relative aspect-video bg-muted rounded-md overflow-hidden mb-3 shadow-sm border border-border/40">
+            <div className="
+                relative
+                aspect-video
+                overflow-hidden
+                rounded-xl
+                bg-card
+                border
+                border-border
+                shadow-sm
+                ">
                 
                 {isPlayerVisible ? (
                     <div className="relative w-full h-full animate-in fade-in duration-300">
@@ -109,15 +118,32 @@ export default function VideoCard({ video, onView, onProcess, taskStatus }: Vide
                             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                         />
                         
-                        <div className="absolute bottom-2 right-2 bg-black/80 text-white text-xs px-1.5 py-0.5 rounded font-mono font-medium">
-                            {formattedDuration} 
-                        </div>
+                                        <div
+                                        className="
+                                        absolute
+                                        bottom-2
+                                        right-2
+                                        px-2
+                                        py-1
+                                        rounded-md
+                                        bg-card/90
+                                        backdrop-blur
+                                        border
+                                        border-border
+                                        text-xs
+                                        font-medium
+                                        text-foreground
+                                        "
+                                        >            
+                                                    {formattedDuration} 
+                                        </div>
 
                         {/* Overlay au survol */}
-                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                        <div className="absolute inset-0 bg-background/70 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                             <button
                                 onClick={handleViewClick}
-                                className="p-4 rounded-full bg-red-600 hover:bg-red-500 text-white transition-transform duration-200 transform hover:scale-110 shadow-xl"
+                                className="p-4 rounded-full bg-primary
+hover:bg-primary/90 text-primary-foreground transition-transform duration-200 transform hover:scale-110 shadow-xl"
                             >
                                 <Eye className="h-6 w-6" />
                             </button>
@@ -131,11 +157,14 @@ export default function VideoCard({ video, onView, onProcess, taskStatus }: Vide
                     disabled={isProcessing && !isFailed}
                     title={buttonTitle}
                     className={`absolute top-2 right-2 p-2.5 rounded-full text-white transition-all duration-200 transform hover:scale-110 shadow-md z-10
-                                ${!isPlayerVisible ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'}
-                                ${isProcessing ? 'bg-yellow-500 cursor-wait' : 
-                                  isCompleted ? 'bg-green-500 cursor-default' : 
-                                  isFailed ? 'bg-red-500 hover:bg-red-600' :
-                                  'bg-blue-600/90 hover:bg-blue-600'}`}
+                               ${!isPlayerVisible ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'}
+                                    ${isProcessing
+                                    ? 'bg-secondary cursor-wait'
+                                    : isCompleted
+                                    ? 'bg-accent cursor-default'
+                                    : isFailed
+                                    ? 'bg-destructive'
+                                    : 'bg-primary hover:bg-primary/90'}`}
                 >
                     {isProcessing ? (
                         <Clock className="h-5 w-5 animate-spin" />
