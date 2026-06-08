@@ -1,25 +1,24 @@
 package com.music.OneDrop.Service;
 
-import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Service;
-
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.File;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.concurrent.TimeUnit;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
-import com.music.OneDrop.repository.VideoRepository;
-import com.music.OneDrop.Service.TaskStatusManager;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Service;
+
 import com.music.OneDrop.Service.TaskStatusManager.Status;
 import com.music.OneDrop.model.VideoEntry;
+import com.music.OneDrop.repository.VideoRepository;
 
 @Service
 public class AudioProcessorService {
@@ -316,7 +315,10 @@ public static void initPaths() {
          * TASK A - SPLEETER
          */
         CompletableFuture<Integer> spleeterFuture = CompletableFuture.supplyAsync(() -> {
-            try {
+
+
+
+    try {
                 String spleeterCommand = String.format(
                         "\"%s\" \"%s\" \"%s\" -p spleeter:4stems > NUL 2>&1",
                         SPLEETER_EXEC_PATH,
@@ -325,11 +327,16 @@ public static void initPaths() {
                 );
 
                 ProcessBuilder spleeterBuilder = new ProcessBuilder("cmd.exe", "/c", spleeterCommand);
-                spleeterBuilder.directory(USER_DATA_DIR.toFile());
-                spleeterBuilder.environment().put("MODEL_PATH", MODELS_DIR.toAbsolutePath().toString());
-
+                spleeterBuilder.directory(TOOLS_DIR.toFile());             
+                 spleeterBuilder.environment().put("MODEL_PATH", MODELS_DIR.toAbsolutePath().toString());
+                String existingPath = System.getenv("PATH");
+                spleeterBuilder.environment().put("PATH", TOOLS_DIR.toAbsolutePath().toString() + File.pathSeparator + existingPath);
                 System.out.println("Spleeter démarré en parallèle...");
                 return runCommand(spleeterBuilder);
+      
+        
+        // VÉRIFIEZ BIEN QUE CETTE LIGNE COMPORTE LE "return"
+      
 
             } catch (Exception e) {
                 System.err.println("Erreur thread Spleeter: " + e.getMessage());

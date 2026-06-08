@@ -157,3 +157,21 @@ Name: "{userdesktop}\OneDrop"; Filename: "{app}\OneDrop.exe"
 
 [Run]
 Filename: "{app}\OneDrop.exe"; Description: "Launch OneDrop"; Flags: nowait postinstall skipifsilent
+
+
+
+
+
+compress Your Executables with UPX (Saves 40% across all tools)
+
+
+
+bg-white
+bg-blue-600
+bg-red-500
+bg-black/80
+text-gray-400
+hover:bg-gray-700
+
+git fetch origin 
+git reset --hard origin/stable-version

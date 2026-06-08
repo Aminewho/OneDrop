@@ -4,7 +4,7 @@ import { useBpm } from '../hooks/useBpm';
 import * as Tone from "tone";
 import {
     Music, Zap, Volume2, Disc3, Aperture, ArrowLeft, Play, Pause,
-    X, ArrowRight, Repeat2, ChevronUp, ChevronDown, RotateCcw, Check
+    X, ArrowRight, Repeat2, RotateCcw
 } from "lucide-react";
 
 interface ButtonProps {
@@ -42,11 +42,35 @@ const formatTime = (s: number) => {
 };
 
 const STEM_CONFIG: Record<string,{color:string;icon:ReactNode;label:string}> = {
-    vocals: { color:"hsl(var(--destructive))", icon:<Music    className="w-4 h-4"/>, label:"Vocals" },
-    drums:  { color:"hsl(var(--primary))", icon:<Disc3    className="w-4 h-4"/>, label:"Drums"  },
-    drum:   { color:"hsl(var(--primary))", icon:<Disc3    className="w-4 h-4"/>, label:"Drums"  },
-    bass:   { color:"hsl(var(--accent))", icon:<Aperture className="w-4 h-4"/>, label:"Bass"   },
-    other:  { color:"hsl(var(--secondary))", icon:<Zap      className="w-4 h-4"/>, label:"Other"  },
+    vocals: {
+        color:"hsl(var(--primary))",
+        icon:<Music className="w-4 h-4"/>,
+        label:"Vocals"
+    },
+
+    drums: {
+        color:"hsl(var(--primary))",
+        icon:<Disc3 className="w-4 h-4"/>,
+        label:"Drums"
+    },
+
+    drum: {
+        color:"hsl(var(--primary))",
+        icon:<Disc3 className="w-4 h-4"/>,
+        label:"Drums"
+    },
+
+    bass: {
+        color:"hsl(var(--primary))",
+        icon:<Aperture className="w-4 h-4"/>,
+        label:"Bass"
+    },
+
+    other: {
+        color:"hsl(var(--primary))",
+        icon:<Zap className="w-4 h-4"/>,
+        label:"Other"
+    },
 };
 const getCfg = (name: string) => STEM_CONFIG[name.toLowerCase()] ?? STEM_CONFIG["other"];
 
@@ -402,32 +426,40 @@ export default function Separator() {
                             </button>
                             <button onClick={handleForward} disabled={!isAudioReady||hasLoadError} className="p-2 text-muted-foreground hover:text-foreground disabled:opacity-30"><ArrowRight className="w-4 h-4"/></button>
                         </div>
-                        {/* BPM — time-stretch, no pitch change */}
-                        <div className="flex items-center justify-end gap-1 w-1/3">
-                            {bpm.originalBpm && bpm.currentBpm !== bpm.originalBpm && (
-                                <span className="text-xs font-mono tabular-nums" style={{ color: "hsl(var(--muted-foreground))" }}>
-                                    {bpm.originalBpm}→
-                                </span>
-                            )}
-                            <button onClick={() => bpm.incrementBpm(-1)}
-                                disabled={!isAudioReady || !bpm.originalBpm || (bpm.currentBpm ?? 0) <= 40}
-                                className="w-6 h-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/20 disabled:opacity-30">
-                                <ChevronDown className="w-3.5 h-3.5"/>
-                            </button>
-                            <span className="text-sm font-mono font-semibold tabular-nums w-10 text-center"
-                                style={{ color: bpm.currentBpm !== bpm.originalBpm ? "hsl(var(--primary))" : "hsl(var(--foreground))" }}
-                                title={`Original: ${bpm.originalBpm} BPM`}>
-                                {bpm.currentBpm ?? "--"}
-                            </span>
-                            <button onClick={() => bpm.incrementBpm(+1)}
-                                disabled={!isAudioReady || !bpm.originalBpm || (bpm.currentBpm ?? 0) >= 300}
-                                className="w-6 h-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/20 disabled:opacity-30">
-                                <ChevronUp className="w-3.5 h-3.5"/>
-                            </button>
-                            <span className="text-xs text-muted-foreground font-mono ml-0.5">BPM</span>
+                        {/* BPM — time-stretch, no pitch change. Max = original BPM */}
+                        <div className="flex items-center justify-end gap-1.5 w-1/3">
+                            <div className="flex items-center gap-0 rounded-lg border border-border/40 overflow-hidden">
+                                {/* − button */}
+                                <button
+                                    onClick={() => bpm.incrementBpm(-1)}
+                                    disabled={!isAudioReady || !bpm.originalBpm || (bpm.currentBpm ?? 0) <= 40}
+                                    className="w-7 h-7 flex items-center justify-center text-sm font-bold text-muted-foreground hover:text-foreground hover:bg-muted/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all border-r border-border/40">
+                                    −
+                                </button>
+                                {/* BPM value */}
+                                <div className="px-2 h-7 flex items-center gap-1 min-w-[64px] justify-center">
+                                    <span
+                                        className="text-sm font-mono font-semibold tabular-nums"
+                                        style={{ color: bpm.currentBpm !== bpm.originalBpm ? "hsl(var(--primary))" : "hsl(var(--foreground))" }}
+                                        title={`Original: ${bpm.originalBpm} BPM`}>
+                                        { (bpm.currentBpm ?? "--")}
+                                    </span>
+                                    <span className="text-[10px] text-muted-foreground font-mono">BPM</span>
+                                </div>
+                                {/* + button — disabled at original BPM (can't go higher) */}
+                                <button
+                                    onClick={() => bpm.incrementBpm(+1)}
+                                    disabled={!isAudioReady || !bpm.originalBpm || bpm.currentBpm === bpm.originalBpm}
+                                    className="w-7 h-7 flex items-center justify-center text-sm font-bold text-muted-foreground hover:text-foreground hover:bg-muted/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all border-l border-border/40">
+                                    +
+                                </button>
+                            </div>
+                            {/* Reset — only shown when BPM is lowered */}
                             {bpm.currentBpm !== bpm.originalBpm && bpm.originalBpm && (
-                                <button onClick={bpm.resetBpm}
-                                    className="w-5 h-5 rounded text-muted-foreground hover:text-primary ml-0.5" title="Reset BPM">
+                                <button
+                                    onClick={bpm.resetBpm}
+                                    className="w-6 h-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-muted/20 transition-all"
+                                    title={`Reset to ${bpm.originalBpm} BPM`}>
                                     <RotateCcw className="w-3 h-3"/>
                                 </button>
                             )}
@@ -543,7 +575,7 @@ export default function Separator() {
                                             className="flex-1 h-1.5 appearance-none rounded-full cursor-pointer disabled:opacity-30"
                                             style={{WebkitAppearance:"none", background:stem.isMuted
                                                 ? `linear-gradient(to right,rgba(255,255,255,0.15) ${stem.volume*100}%,rgba(255,255,255,0.05) ${stem.volume*100}%)`
-                                                : `linear-gradient(to right,${cfg.color} ${stem.volume*100}%,hsl(var(--border) / 0.3) ${stem.volume*100}%)`} as React.CSSProperties}
+                                                : `linear-gradient(to right,hsl(var(--primary)) ${stem.volume*100}%,hsl(var(--border) / 0.3) ${stem.volume*100}%)`} as React.CSSProperties}
                                         />
                                         <span className="text-xs font-mono tabular-nums w-8 text-right shrink-0" style={{color:stem.isMuted?"hsl(var(--border))":"hsl(var(--muted-foreground))"}}>
                                             {Math.round(stem.volume*100)}
