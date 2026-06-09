@@ -17,6 +17,9 @@ Write-Host "`n📦 Step 1: Building React Frontend..." -ForegroundColor Yellow
 Set-Location $FRONTEND_DIR
 # Calling npm directly via cmd executor inside PowerShell avoids the Win32 binary issue
 cmd /c "npm run build"
+C:\Users\THINKPAD\Projects\OneDrop\OneDrop\src\main\resources\static
+Remove-Item -Path C:\Users\THINKPAD\Projects\OneDrop\OneDrop\src\main\resources\static -Recurse -Force 
+Copy-Item -Path C:\Users\THINKPAD\Projects\OneDrop\OneDropMusic\dist\public\* -Destination C:\Users\THINKPAD\Projects\OneDrop\OneDrop\src\main\resources\static -Recurse -Force
 
 # 2. Clean up old backend static assets
 Write-Host "`n🧹 Step 2: Cleaning old static assets in backend..." -ForegroundColor Yellow
@@ -56,3 +59,13 @@ if (Test-Path $JAR_PATH) {
 } else {
     throw "Target JAR file could not be found. Check Maven build logs."
 }
+
+
+
+
+
+
+Remove-Item -Path C:\Users\THINKPAD\Projects\OneDrop\OneDrop\src\main\resources\static -Recurse -Force 
+
+
+C:\Users\THINKPAD\Projects\OneDrop> Copy-Item -Path C:\Users\THINKPAD\Projects\OneDrop\OneDropMusic\dist\public\ -Destination C:\Users\THINKPAD\Projects\OneDrop\OneDrop\src\main\resources\static -Recurse -Force
