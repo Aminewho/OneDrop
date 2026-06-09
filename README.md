@@ -164,7 +164,7 @@ Filename: "{app}\OneDrop.exe"; Description: "Launch OneDrop"; Flags: nowait post
 
 compress Your Executables with UPX (Saves 40% across all tools)
 
-
+Dynamic coloring : Plus tard je  n'aurais qu'à remplacer les valeurs statiques par les valeurs renvoyées par ton serveur distant et réécrire ce même config.json dans le fichier ConfigService.java Le frontend n'aura aucun changement à faire.
 
 bg-white
 bg-blue-600
@@ -175,3 +175,23 @@ hover:bg-gray-700
 
 git fetch origin 
 git reset --hard origin/stable-version
+
+
+Remove-Item -Path C:\Users\THINKPAD\Projects\OneDrop\OneDrop\src\main\resources\static -Recurse -Force 
+Copy-Item -Path C:\Users\THINKPAD\Projects\OneDrop\OneDropMusic\dist\public\ -Destination C:\Users\THINKPAD\Projects\OneDrop\OneDrop\src\main\resources\static -Recurse -Force
+
+
+
+
+Remove-Item -Path C:\Users\a.ziadi\PROJECTS\OneDrop\OneDrop\src\main\resources\static -Recurse -Force 
+Copy-Item -Path C:\Users\a.ziadi\PROJECTS\OneDrop\OneDropMusic\dist\public\ -Destination C:\Users\a.ziadi\PROJECTS\OneDrop\OneDrop\src\main\resources\static -Recurse -Force
+
+
+
+
+To Do : 
+- updating the red counter.
+- updating th logo logic.
+- update the spleeter worksation colors.
+- update the dragging point in the pleeting page.
+- update the spotify landing page logic.

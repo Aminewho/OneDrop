@@ -65,7 +65,6 @@ if (Test-Path $JAR_PATH) {
 
 
 
-Remove-Item -Path C:\Users\THINKPAD\Projects\OneDrop\OneDrop\src\main\resources\static -Recurse -Force 
 
 
 C:\Users\THINKPAD\Projects\OneDrop> Copy-Item -Path C:\Users\THINKPAD\Projects\OneDrop\OneDropMusic\dist\public\ -Destination C:\Users\THINKPAD\Projects\OneDrop\OneDrop\src\main\resources\static -Recurse -Force

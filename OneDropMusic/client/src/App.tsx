@@ -7,8 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useEffect } from 'react';
 // Import du VideoStateProvider pour persister l'état
 // NOTE: L'extension de ce fichier pourrait être .jsx ou .tsx selon votre configuration
-
-// Import des composants et pages
+import { applyTheme } from "@/assets/themes/themeManager";       // Import des composants et pages
 import NavBar from "@/components/NavBar";
 import MusicPlayer from "@/components/MusicPlayer";
 import Videos from "@/pages/Videos";
@@ -52,6 +51,37 @@ function App() {
       window.location.replace(newUrl);
     }
   }, []);
+  useEffect(() => {
+
+  const loadTheme = async () => {
+
+    try {
+
+      const response = await fetch(
+        "http://localhost:8081/api/config"
+      );
+
+      if (!response.ok) {
+        throw new Error("Unable to load config");
+      }
+
+      const config = await response.json();
+
+      console.log("Theme loaded:", config.theme);
+
+      applyTheme(config.theme);
+
+    } catch (error) {
+
+      console.error("Theme loading failed:", error);
+
+      applyTheme("classic");
+    }
+  };
+
+  loadTheme();
+
+}, []);
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
