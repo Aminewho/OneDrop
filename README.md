@@ -191,5 +191,4 @@ Copy-Item -Path C:\Users\a.ziadi\PROJECTS\OneDrop\OneDropMusic\dist\public\ -Des
 
 To Do : 
 - updating th logo logic.
-- update the spleeter worksation colors.
 - update the spotify landing page logic.

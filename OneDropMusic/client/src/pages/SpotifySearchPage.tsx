@@ -1,17 +1,16 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { useLocation } from 'wouter'; 
+import { useLocation } from 'wouter';
 import { toast } from 'react-hot-toast';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { 
-    Search, Zap, Music, Loader2, User, TrendingUp, Users, 
+    Search, Zap, Music, Loader2, TrendingUp, 
     PlayCircle, Play, ArrowLeft, Disc, X, Calendar, Clock, Youtube
 } from 'lucide-react'; 
 import { 
     useSpotifyApi, 
     SpotifySearchResults, 
-    UserProfile, 
     Artist 
 } from '../components/useSpotifyApi'; 
 import AlertModal from "@/components/AlertModal";
@@ -126,13 +125,8 @@ const ArtistList: React.FC<ArtistListProps> = ({ title, icon: Icon, artists, col
 // --- Main Component ---
 
 export default function SpotifySearchPage() {
-    // --- USER DATA STATES ---
-    const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-    const [topArtists, setTopArtists] = useState<Artist[] | null>(null);
-    const [followingArtists, setFollowingArtists] = useState<Artist[] | null>(null);
-    const [isLoadingProfile, setIsLoadingProfile] = useState(true); 
-// Place this with your other useState hooks
-const [taskStatuses, setTaskStatuses] = useState<Record<string, TaskStatus>>({});
+    // --- SEARCH STATES ---
+    const [taskStatuses, setTaskStatuses] = useState<Record<string, TaskStatus>>({});
     // --- SEARCH STATES ---
     const [searchQuery, setSearchQuery] = useState('');
     const [isSearching, setIsSearching] = useState(false);
@@ -153,15 +147,11 @@ const [taskStatuses, setTaskStatuses] = useState<Record<string, TaskStatus>>({})
     const [, setLocation] = useLocation();
     
     // Hooks Spotify
-    const { 
-        isLoggedIn, 
-        searchSpotify, 
-        getUserProfile, 
-        getTopArtists, 
-        getFollowingArtists,
+    const {
+        searchSpotify,
         getArtistTopTracks,
-        getArtistAlbums, 
-        getAlbumTracks   
+        getArtistAlbums,
+        getAlbumTracks,
     } = useSpotifyApi();
 // --- Polling Logic ---
 const pollTaskStatus = useCallback(async (videoId: string, currentStatus: TaskStatus) => {
@@ -226,35 +216,7 @@ const CustomPlayButton = ({ onClick, className = "" }: { onClick: () => void, cl
         <Play className="h-5 w-5 fill-black text-black ml-0.5" />
     </Button>
 );
-    // --- 1. Load User Data ---
-    useEffect(() => {
-        if (!isLoggedIn) {
-            setUserProfile(null);
-            setIsLoadingProfile(false);
-            return;
-        }
-
-        const fetchUserData = async () => {
-            setIsLoadingProfile(true);
-            try {
-                const profile = await getUserProfile();
-                setUserProfile(profile);
-                const top = await getTopArtists();
-                setTopArtists(top.items);
-                const following = await getFollowingArtists();
-                setFollowingArtists(following.artists.items); 
-            } catch (e) {
-                console.error("Error fetching user data:", e);
-            } finally {
-                setIsLoadingProfile(false);
-            }
-        };
-
-        fetchUserData();
-    }, [isLoggedIn, getUserProfile, getTopArtists, getFollowingArtists]); 
-
-
-    // --- 2. Youtube Search Logic ---
+    // --- 1. Youtube Search Logic ---
     const findYouTubeVideo = async (track: SearchItem) => {
         if (!YOUTUBE_API_KEY) {
             toast.error("API Key YouTube manquante dans le code !");
@@ -461,7 +423,7 @@ console.log("YouTube Search URL:", query);
     
  const handleSearch = useCallback(async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!searchQuery.trim() || !isLoggedIn) return;
+    if (!searchQuery.trim()) return;
 
     setIsSearching(true);
     // ... tes autres resets (setArtistTracksView, etc.)
@@ -493,7 +455,7 @@ console.log("YouTube Search URL:", query);
     } finally {
         setIsSearching(false);
     }
-}, [searchQuery, isLoggedIn, searchSpotify]);
+}, [searchQuery, searchSpotify]);
 
     // --- RENDERERS ---
 
@@ -509,105 +471,148 @@ console.log("YouTube Search URL:", query);
         ['PENDING', 'DOWNLOADING', 'SEPARATING'].includes(currentStatus || '');
     return (
         /* Sticky container with z-index to stay above search results */
-        <div className="sticky top-4 z-40 mb-8 animate-in slide-in-from-top-4 duration-300">
-            <Card className="p-6 border-2 border-primary/20 bg-background/95 backdrop-blur-md shadow-2xl">
-                <div className="flex justify-between items-start mb-4">
-                    <div>
-                        <h3 className="text-xl font-bold flex items-center gap-2">
-                            <Zap className="text-yellow-500 fill-yellow-500" /> 
-                            Spleeter Workstation
-                        </h3>
-                        <p className="text-muted-foreground text-sm">
-                            Track: <span className="font-semibold text-foreground">{activeProcessingTrack.spotifyTrack.name}</span>
-                        </p>
-                    </div>
-                    <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        onClick={() => setActiveProcessingTrack(null)}
-                        className="rounded-full hover:bg-destructive/10 hover:text-destructive transition-colors"
-                    >
-                        <X className="w-5 h-5" />
-                    </Button>
+      <div className="sticky top-4 z-40 mb-8 animate-in slide-in-from-top-4 duration-300">
+    <Card className="overflow-hidden border border-border/60 bg-card shadow-lg">
+
+        {/* ── Top accent bar (uses --primary, changes with theme) ── */}
+        <div className="h-0.5 w-full bg-primary/60" />
+
+        {/* ── Header ─────────────────────────────────────────────── */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border/40">
+            <div className="flex items-center gap-3 min-w-0">
+                {/* Animated status dot */}
+                <span className={`w-2 h-2 rounded-full shrink-0 transition-colors ${
+                    isWorking
+                        ? "bg-primary animate-pulse"
+                        : currentStatus === "COMPLETED"
+                        ? "bg-green-500"
+                        : "bg-muted-foreground/30"
+                }`} />
+                <div className="min-w-0">
+                    <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                        Stem Extraction
+                    </p>
+                    <p className="text-sm font-semibold text-foreground truncate">
+                        {activeProcessingTrack.spotifyTrack.name}
+                    </p>
                 </div>
-<AlertModal
-    message={alertMessage}
-    onClose={() => setAlertMessage(null)}
-    title="Already Processed"
-    variant="warning"
-/>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Left Column: YouTube Player with Auto-start */}
-                    <div className="aspect-video bg-black rounded-lg overflow-hidden shadow-lg border border-border">
-                        {activeProcessingTrack.isSearchingYoutube ? (
-                            <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground bg-muted/20">
-                                <Loader2 className="w-10 h-10 animate-spin mb-3 text-primary" />
-                                <p>Finding the best audio source...</p>
-                            </div>
-                        ) : activeProcessingTrack.youtubeId ? (
-                            <iframe
-                                width="100%"
-                                height="100%"
-                                src={`https://www.youtube.com/embed/${activeProcessingTrack.youtubeId}?autoplay=1`}
-                                title="YouTube video player"
-                                frameBorder="0"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                allowFullScreen
-                            ></iframe>
-                        ) : (
-                            <div className="w-full h-full flex items-center justify-center text-red-500">
-                                <X className="w-8 h-8 mr-2" /> Source not found
-                            </div>
-                        )}
+            </div>
+            <button
+                onClick={() => setActiveProcessingTrack(null)}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-all shrink-0 ml-4"
+            >
+                <X className="w-4 h-4" />
+            </button>
+        </div>
+
+        <AlertModal
+            message={alertMessage}
+            onClose={() => setAlertMessage(null)}
+            title="Already Processed"
+            variant="warning"
+        />
+
+        {/* ── Body ───────────────────────────────────────────────── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-0 divide-y md:divide-y-0 md:divide-x divide-border/40">
+
+            {/* Left: Video embed */}
+            <div className="p-4">
+                <div className="aspect-video rounded-xl overflow-hidden bg-muted/30 border border-border/40">
+                    {activeProcessingTrack.isSearchingYoutube ? (
+                        <div className="w-full h-full flex flex-col items-center justify-center gap-3 text-muted-foreground">
+                            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                            <p className="text-sm">Finding best source…</p>
+                        </div>
+                    ) : activeProcessingTrack.youtubeId ? (
+                        <iframe
+                            width="100%" height="100%"
+                            src={`https://www.youtube.com/embed/${activeProcessingTrack.youtubeId}?autoplay=1`}
+                            title="YouTube video player"
+                            frameBorder="0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                        />
+                    ) : (
+                        <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                            <X className="w-8 h-8 text-destructive/50" />
+                            <p className="text-sm">No source found</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Right: Info + action */}
+            <div className="p-4 flex flex-col justify-between gap-4">
+
+                {/* Info box */}
+                <div className="rounded-xl border border-border/40 bg-muted/20 p-4 space-y-3 text-sm flex-1">
+                    <div className="flex items-start gap-2.5">
+                        <div className="w-7 h-7 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 mt-0.5">
+                            <Youtube className="w-3.5 h-3.5 text-primary" />
+                        </div>
+                        <div>
+                            <p className="font-semibold text-foreground text-sm">Source detected</p>
+                            <p className="text-muted-foreground text-xs mt-0.5 leading-relaxed">
+                                Ready to separate into Vocals, Drums, Bass and Other.
+                            </p>
+                        </div>
                     </div>
 
-                    {/* Right Column: Spleeter Action & Help */}
-                    <div className="flex flex-col justify-center space-y-4">
-                        <div className="p-4 bg-accent/5 rounded-md border text-sm text-muted-foreground shadow-sm">
-                            <h4 className="font-semibold text-foreground mb-1 flex items-center">
-                                <Youtube className="w-4 h-4 mr-2 text-red-500"/> 
-                                Audio Source Detected
-                            </h4>
-                            <p className="mb-3">
-                                Click below to start extracting audio stems (Vocals, Drums, Bass...).
-                            </p>
-                            <div className="pt-2 border-t border-border/50 italic text-[11px]">
-                                💡 If this version doesn't satisfy you, try using the <strong>YouTube Search</strong> tab for more options.
-                            </div>
-                        </div>
-                        
-                        <Button 
-                            className="w-full h-16 text-lg font-bold shadow-lg transition-all transform hover:scale-[1.01] active:scale-95 bg-blue-600 hover:bg-blue-500"
-                            disabled={activeProcessingTrack.isSearchingYoutube || isWorking || !activeProcessingTrack.youtubeId}
-                            onClick={executeSpleeter}
-                        >
-                            {isWorking ? (
-                                <>
-                                    <Loader2 className="mr-3 h-6 w-6 animate-spin" />
-                                    {currentStatus === 'SEPARATING' ? 'SEPARATING STEMS...' : 
-                                    currentStatus === 'DOWNLOADING' ? 'DOWNLOADING AUDIO...' : 'STARTING...'}
-                                </>
-                            ) : currentStatus === 'COMPLETED' ? (
-                                <>
-                                    <Music className="mr-3 h-6 w-6" />
-                                    SEPARATION COMPLETE!
-                                </>
-                            ) : currentStatus === 'FAILED' ? (
-                                <>
-                                    <Zap className="mr-3 h-6 w-6 fill-white" />
-                                    RETRY SPLEETER
-                                </>
-                            ) : (
-                                <>
-                                    <Zap className="mr-3 h-6 w-6 fill-white" />
-                                    EXECUTE SPLEETER
-                                </>
-                            )}
-                        </Button>
+                    {/* Stems preview pills */}
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                        {["Vocals", "Drums", "Bass", "Other"].map(stem => (
+                            <span key={stem}
+                                className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-muted/60 text-muted-foreground border border-border/40 uppercase tracking-wide">
+                                {stem}
+                            </span>
+                        ))}
                     </div>
+
+                    <p className="text-[11px] text-muted-foreground/60 pt-1 border-t border-border/30 leading-relaxed">
+                        Wrong version?{" "}
+                        <span className="text-primary cursor-pointer hover:underline">
+                            Use YouTube Search
+                        </span>{" "}
+                        to pick another source.
+                    </p>
                 </div>
-            </Card>
+
+                {/* Execute button */}
+                <button
+                    disabled={activeProcessingTrack.isSearchingYoutube || isWorking || !activeProcessingTrack.youtubeId}
+                    onClick={executeSpleeter}
+                    className={`
+                        w-full h-12 rounded-xl text-sm font-semibold tracking-wide
+                        flex items-center justify-center gap-2.5
+                        transition-all duration-200 active:scale-[0.98]
+                        disabled:opacity-50 disabled:cursor-not-allowed
+                        ${currentStatus === "COMPLETED"
+                            ? "bg-green-500/15 text-green-600 border border-green-500/30 hover:bg-green-500/20"
+                            : currentStatus === "FAILED"
+                            ? "bg-destructive/10 text-destructive border border-destructive/20 hover:bg-destructive/15"
+                            : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm shadow-primary/20"
+                        }
+                    `}
+                >
+                    {isWorking ? (
+                        <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            {currentStatus === "SEPARATING" ? "Separating stems…"
+                            : currentStatus === "DOWNLOADING" ? "Downloading…"
+                            : "Starting…"}
+                        </>
+                    ) : currentStatus === "COMPLETED" ? (
+                        <><Music className="w-4 h-4" /> Extraction complete</>
+                    ) : currentStatus === "FAILED" ? (
+                        <><Zap className="w-4 h-4" /> Retry extraction</>
+                    ) : (
+                        <><Zap className="w-4 h-4" /> Extract stems</>
+                    )}
+                </button>
+            </div>
         </div>
+    </Card>
+</div>
     );
 };
 
@@ -868,23 +873,6 @@ console.log("YouTube Search URL:", query);
             )}
 
 
-            {/* --- CONNECTION STATUS --- */}
-            {!isLoggedIn && (
-                <Card className="p-4 border-l-4 border-red-500 bg-red-900/10 mb-6 flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                        <Zap className="w-6 h-6 text-red-400" />
-                        <div>
-                            <h3 className="font-semibold text-red-300">Spotify Connection Required</h3>
-                            <p className="text-sm text-red-400">Please connect your account to search their catalog.</p>
-                        </div>
-                    </div>
-                    <Button onClick={() => setLocation('/spotify-callback')} className="bg-green-600 hover:bg-green-700">
-                        Connect Spotify
-                    </Button>
-                </Card>
-            )}
-            
-
             {/* --- SEARCH FORM --- */}
             <form onSubmit={handleSearch} className="flex gap-2 mb-6">
                 <Input
@@ -892,10 +880,10 @@ console.log("YouTube Search URL:", query);
                     placeholder={artistTracksView ? `Viewing ${artistTracksView.artistName}...` : "Search for tracks, artists, or albums..."}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    disabled={!isLoggedIn || isSearching || artistTracksView !== null} 
+                    disabled={isSearching || artistTracksView !== null} 
                     className="flex-1"
                 />
-                <Button type="submit" disabled={!isLoggedIn || isSearching || artistTracksView !== null} className="w-32">
+                <Button type="submit" disabled={isSearching || artistTracksView !== null} className="w-32">
                     {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
                     Search
                 </Button>
@@ -903,9 +891,6 @@ console.log("YouTube Search URL:", query);
 
             {/* --- NEW: VIDEO PLAYER & PROCESSING --- */}
             {renderProcessingSection()}
-
-            {/* --- DEFAULT VIEW (Profile) --- */}
-            {renderUserProfile()}
 
             {/* --- RESULTS SECTION --- */}
             {(shouldShowResultsSection || artistTracksView) && (
@@ -962,55 +947,4 @@ console.log("YouTube Search URL:", query);
         </div>
     );
 
-    // --- USER PROFILE HELPER ---
-    function renderUserProfile() {
-        if (!isLoggedIn || artistTracksView || searchQuery.length > 0 || activeProcessingTrack) return null; 
-
-        if (isLoadingProfile) {
-            return (
-                <Card className="p-4 mb-6 flex items-center space-x-3 text-muted-foreground">
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>Loading your Spotify data...</span>
-                </Card>
-            );
-        }
-
-        const profileImage = userProfile?.images?.[0]?.url;
-        const displayName = userProfile?.display_name || userProfile?.id || 'User';
-
-        return (
-            <Card className="p-6 mb-6">
-                <div className="flex items-center space-x-4 border-b pb-4 mb-4">
-                    {profileImage ? (
-                        <img src={profileImage} alt={displayName} className="w-16 h-16 rounded-full object-cover shadow-lg" />
-                    ) : (
-                        <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-                            <User className="w-8 h-8 text-primary" />
-                        </div>
-                    )}
-                    <div>
-                        <h2 className="text-2xl font-bold flex items-center">Welcome, {displayName}!</h2>
-                        <p className="text-sm text-muted-foreground">{userProfile?.email}</p>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <ArtistList 
-                        title="Your Top Artists" 
-                        icon={TrendingUp} 
-                        artists={topArtists} 
-                        color="text-green-500"
-                        onArtistClick={handleArtistClick} 
-                    />
-                    <ArtistList 
-                        title="Artists You Follow" 
-                        icon={Users} 
-                        artists={followingArtists} 
-                        color="text-blue-500"
-                        onArtistClick={handleArtistClick} 
-                    />
-                </div>
-            </Card>
-        );
-    }
 }
