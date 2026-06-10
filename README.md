@@ -190,8 +190,6 @@ Copy-Item -Path C:\Users\a.ziadi\PROJECTS\OneDrop\OneDropMusic\dist\public\ -Des
 
 
 To Do : 
-- updating the red counter.
 - updating th logo logic.
 - update the spleeter worksation colors.
-- update the dragging point in the pleeting page.
 - update the spotify landing page logic.

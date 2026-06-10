@@ -513,36 +513,32 @@ export default function Separator() {
                                         <span className="font-mono font-bold pb-1" style={{ color: "hsl(var(--muted-foreground))", fontSize: 18 }}>.</span>
                                         <InlineScrollColumn values={centis}  selectedIndex={aCs}  onSelect={i => setA(aMin, aSec, i)} color="hsl(var(--primary))" />
                                     </div>
-                                    <div className="text-center mt-1">
-                                        <span className="text-xs font-mono" style={{ color: "hsl(var(--muted-foreground))" }}>min : sec . 1/100</span>
-                                    </div>
+                                   
                                 </div>
                                 {/* B POINT */}
                                 <div className="flex-1 px-3 pb-4">
                                     <div className="flex items-center justify-between mb-2">
                                         <span className="text-xs font-bold px-2 py-0.5 rounded-lg font-mono"
-                                            style={{ background: alpha("hsl(var(--destructive))",0.13), color: "hsl(var(--destructive))", border: `1px solid ${alpha("hsl(var(--destructive))",0.25)}` }}>B</span>
+                                            style={{ background: alpha("hsl(var(--primary))",0.13), color: "hsl(var(--primary))", border: `1px solid ${alpha("hsl(var(--primary))",0.25)}` }}>B</span>
                                         <button onClick={() => setLoopEnd(Math.min(maxDuration, playbackTime))}
                                             className="text-xs px-2 py-1 rounded-lg transition-all active:scale-95 font-mono"
-                                            style={{ background: alpha("hsl(var(--destructive))",0.08), color: alpha("hsl(var(--destructive))",0.50), border: `1px solid ${alpha("hsl(var(--destructive))",0.15)}` }}>
+                                            style={{ background: alpha("hsl(var(--primary))",0.08), color: alpha("hsl(var(--primary))",0.50), border: `1px solid ${alpha("hsl(var(--primary))",0.15)}` }}>
                                             ▶ Set here
                                         </button>
                                     </div>
                                     <div className="text-center mb-2">
-                                        <span className="font-mono text-sm font-bold tabular-nums" style={{ color: "hsl(var(--destructive))" }}>
+                                        <span className="font-mono text-sm font-bold tabular-nums" style={{ color: "hsl(var(--primary))" }}>
                                             {bMin.toString().padStart(2,"0")}:{bSec.toString().padStart(2,"0")}.{bCs.toString().padStart(2,"0")}
                                         </span>
                                     </div>
                                     <div className="flex items-center justify-center gap-1">
-                                        <InlineScrollColumn values={minutes} selectedIndex={bMin} onSelect={i => setB(i, bSec, bCs)} color="hsl(var(--destructive))" />
+                                        <InlineScrollColumn values={minutes} selectedIndex={bMin} onSelect={i => setB(i, bSec, bCs)} color="hsl(var(--primary))" />
                                         <span className="font-mono font-bold pb-1" style={{ color: "hsl(var(--muted-foreground))", fontSize: 18 }}>:</span>
-                                        <InlineScrollColumn values={seconds} selectedIndex={bSec} onSelect={i => setB(bMin, i, bCs)} color="hsl(var(--destructive))" />
+                                        <InlineScrollColumn values={seconds} selectedIndex={bSec} onSelect={i => setB(bMin, i, bCs)} color="hsl(var(--primary))" />
                                         <span className="font-mono font-bold pb-1" style={{ color: "hsl(var(--muted-foreground))", fontSize: 18 }}>.</span>
-                                        <InlineScrollColumn values={centis}  selectedIndex={bCs}  onSelect={i => setB(bMin, bSec, i)} color="hsl(var(--destructive))" />
+                                        <InlineScrollColumn values={centis}  selectedIndex={bCs}  onSelect={i => setB(bMin, bSec, i)} color="hsl(var(--primary))" />
                                     </div>
-                                    <div className="text-center mt-1">
-                                        <span className="text-xs font-mono" style={{ color: "hsl(var(--muted-foreground))" }}>min : sec . 1/100</span>
-                                    </div>
+                                  
                                 </div>
                             </div>
                         </div>
