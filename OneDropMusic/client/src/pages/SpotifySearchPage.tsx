@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { 
     Search, Zap, Music, Loader2, TrendingUp, 
-    PlayCircle, Play, ArrowLeft, Disc, X, Calendar, Clock, Youtube
+    PlayCircle, Play, Disc, X, Calendar, Clock, Youtube
 } from 'lucide-react'; 
 import { 
     useSpotifyApi, 
@@ -60,6 +60,8 @@ type ActiveTab = 'All' | 'Tracks' | 'Artists' | 'Albums';
 // ⚠️ IMPORTANT : Remplacez ceci par votre clé API Google Cloud
 const YOUTUBE_API_KEY = "AIzaSyDEYDLuOqwcFQyomz8UwYTrMChjY_nSFks"; 
 const BACKEND_BASE_URL = "http://localhost:8081"; // Base URL de votre proxy/backend
+// Local storage key for preserving page state
+const STORAGE_KEY = 'spotify_search_page_state_v1';
 
 // --- Helpers ---
 
@@ -318,8 +320,7 @@ console.log("YouTube Search URL:", query);
         if (isSearching) return;
         setIsSearching(true);
         setSearchResults({ tracks: [], artists: [], albums: [] });
-        setSearchQuery('');
-        setSelectedAlbum(null);
+
         setActiveProcessingTrack(null); // Hide player on navigation
         
         try {
@@ -426,29 +427,28 @@ console.log("YouTube Search URL:", query);
     if (!searchQuery.trim()) return;
 
     setIsSearching(true);
-    // ... tes autres resets (setArtistTracksView, etc.)
+    setArtistTracksView(null);
+    setArtistAlbums([]);
+    setSelectedAlbum(null);
+    setActiveProcessingTrack(null);
     setSearchResults({ tracks: [], artists: [], albums: [] });
-    setActiveTab('All'); 
+    setActiveTab('All');
 
     try {
-        const results = await searchSpotify(searchQuery); 
-        
-        // --- LA LOGIQUE DE FILTRAGE ICI ---
+        const results = await searchSpotify(searchQuery);
+
         const filteredResults = {
             ...results,
-            // On ne garde que le premier artiste s'il existe
-            artists: results.artists && results.artists.length > 0 
-                ? [results.artists[0]] 
+            artists: results.artists && results.artists.length > 0
+                ? [results.artists[0]]
                 : [],
-            // On garde toutes les chansons (jusqu'à 15 selon ta config backend)
             tracks: results.tracks || []
         };
 
         setSearchResults(filteredResults);
-        
+
         const total = filteredResults.tracks.length + filteredResults.artists.length;
         if (total === 0) toast("No results found.", { icon: '🔍' });
-
     } catch (error) {
         console.error("Search failed:", error);
         toast.error("An error occurred during search.");
@@ -456,6 +456,45 @@ console.log("YouTube Search URL:", query);
         setIsSearching(false);
     }
 }, [searchQuery, searchSpotify]);
+
+// --- Persistence: load saved state from localStorage on mount ---
+useEffect(() => {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const parsed: any = JSON.parse(raw);
+
+        if (parsed.searchQuery) setSearchQuery(parsed.searchQuery);
+        if (parsed.searchResults) setSearchResults(parsed.searchResults);
+        if (parsed.activeTab) setActiveTab(parsed.activeTab);
+        if (parsed.artistTracksView) setArtistTracksView(parsed.artistTracksView);
+        if (parsed.artistAlbums) setArtistAlbums(parsed.artistAlbums);
+        if (parsed.selectedAlbum) setSelectedAlbum(parsed.selectedAlbum);
+        if (parsed.activeProcessingTrack) setActiveProcessingTrack(parsed.activeProcessingTrack);
+        if (parsed.taskStatuses) setTaskStatuses(parsed.taskStatuses);
+    } catch (err) {
+        console.warn('Failed to restore Spotify page state:', err);
+    }
+}, []);
+
+// Save relevant state to localStorage whenever it changes
+useEffect(() => {
+    try {
+        const toSave = {
+            searchQuery,
+            searchResults,
+            activeTab,
+            artistTracksView,
+            artistAlbums,
+            selectedAlbum,
+            activeProcessingTrack,
+            taskStatuses
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+    } catch (err) {
+        console.warn('Failed to persist Spotify page state:', err);
+    }
+}, [searchQuery, searchResults, activeTab, artistTracksView, artistAlbums, selectedAlbum, activeProcessingTrack, taskStatuses]);
 
     // --- RENDERERS ---
 
@@ -880,10 +919,10 @@ console.log("YouTube Search URL:", query);
                     placeholder={artistTracksView ? `Viewing ${artistTracksView.artistName}...` : "Search for tracks, artists, or albums..."}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    disabled={isSearching || artistTracksView !== null} 
+                    disabled={isSearching}
                     className="flex-1"
                 />
-                <Button type="submit" disabled={isSearching || artistTracksView !== null} className="w-32">
+                <Button type="submit" disabled={isSearching} className="w-32">
                     {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
                     Search
                 </Button>
@@ -898,18 +937,6 @@ console.log("YouTube Search URL:", query);
                     <div className="flex justify-between items-center pt-4 mb-4 border-b pb-2">
                       <div className="flex flex-col gap-1">
   <div className="flex items-center gap-3">
-    {/* Bouton retour si on est dans la vue artiste */}
-    {artistTracksView && (
-      <Button 
-        variant="ghost" 
-        size="icon" 
-        onClick={() => setArtistTracksView(null)}
-        className="h-8 w-8 rounded-full hover:bg-accent"
-      >
-        <ArrowLeft className="w-4 h-4" />
-      </Button>
-    )}
-    
     <h2 className="text-2xl font-bold tracking-tight">
       {artistTracksView ? (
         <span className="flex items-center gap-2">

@@ -191,4 +191,5 @@ Copy-Item -Path C:\Users\a.ziadi\PROJECTS\OneDrop\OneDropMusic\dist\public\ -Des
 
 To Do : 
 - updating th logo logic.
-- update the spotify landing page logic.
+- youtube landing page logic 
+- metronome

@@ -16,6 +16,7 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Value;
 @Service
 public class SpotifyService {
 
@@ -23,8 +24,11 @@ public class SpotifyService {
 
     private static final String SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token";
     private static final String SPOTIFY_API_V1 = "https://api.spotify.com/v1";
-    private static final String SPOTIFY_CLIENT_ID = System.getenv("SPOTIFY_CLIENT_ID");
-    private static final String SPOTIFY_CLIENT_SECRET = System.getenv("SPOTIFY_CLIENT_SECRET");
+    @Value("${spotify.client-id}")
+    private String spotifyClientId;
+
+    @Value("${spotify.client-secret}")
+    private String spotifyClientSecret;
 
     private volatile String appAccessToken = null;
     private volatile long appAccessTokenExpiresAt = 0;
@@ -74,12 +78,12 @@ public class SpotifyService {
             return appAccessToken;
         }
 
-        if (SPOTIFY_CLIENT_ID == null || SPOTIFY_CLIENT_ID.isEmpty() || SPOTIFY_CLIENT_SECRET == null || SPOTIFY_CLIENT_SECRET.isEmpty()) {
+        if (spotifyClientId == null || spotifyClientId.isEmpty() || spotifyClientSecret == null || spotifyClientSecret.isEmpty()) {
             throw new IllegalStateException("Spotify client credentials are not configured in environment variables.");
         }
 
         HttpHeaders headers = new HttpHeaders();
-        headers.setBasicAuth(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET);
+        headers.setBasicAuth(spotifyClientId, spotifyClientSecret);
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
 
         MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
