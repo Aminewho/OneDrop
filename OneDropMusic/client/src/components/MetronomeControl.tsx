@@ -4,18 +4,15 @@ import type { MetronomeHook } from "../hooks/useMetronome";
 
 interface MetronomeControlProps {
     metronome: MetronomeHook;
-    disabled?: boolean;
 }
 
 const TIME_SIGNATURES = [2, 3, 4, 5, 6];
 
 /**
- * Metronome button + settings popover for the navbar.
- * - Click the icon to toggle the metronome on/off
- * - Click the chevron / long area to open settings (volume, time signature, accent)
- * - Beat indicator dots pulse in sync with the click
+ * Standalone metronome button + settings popover, for the global navbar.
+ * Independent of any page's audio engine — has its own BPM and Tone.Clock.
  */
-export default function MetronomeControl({ metronome, disabled }: MetronomeControlProps) {
+export default function MetronomeControl({ metronome }: MetronomeControlProps) {
     const [isOpen, setIsOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -41,14 +38,13 @@ export default function MetronomeControl({ metronome, disabled }: MetronomeContr
                 {/* Toggle button */}
                 <button
                     onClick={metronome.toggle}
-                    disabled={disabled}
                     title={metronome.isEnabled ? "Stop metronome" : "Start metronome"}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-l-lg text-xs font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-l-lg text-xs font-medium transition-all ${
                         metronome.isEnabled ? "text-primary" : "text-muted-foreground hover:text-foreground"
                     }`}
                 >
                     <Music2 className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Metronome</span>
+                    <span className="hidden sm:inline font-mono tabular-nums">{metronome.bpm}</span>
 
                     {/* Beat indicator dots */}
                     <span className="flex items-center gap-0.5 ml-0.5">
@@ -72,9 +68,8 @@ export default function MetronomeControl({ metronome, disabled }: MetronomeContr
                 {/* Settings toggle */}
                 <button
                     onClick={() => setIsOpen(o => !o)}
-                    disabled={disabled}
                     title="Metronome settings"
-                    className="px-2 py-1.5 rounded-r-lg border-l border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-all disabled:opacity-30"
+                    className="px-2 py-1.5 rounded-r-lg border-l border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-all"
                 >
                     <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className={`transition-transform ${isOpen ? "rotate-180" : ""}`}>
                         <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -85,6 +80,49 @@ export default function MetronomeControl({ metronome, disabled }: MetronomeContr
             {/* Settings popover */}
             {isOpen && (
                 <div className="absolute top-full right-0 mt-2 w-64 rounded-xl border border-border/40 bg-card shadow-xl p-4 space-y-4 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+
+                    {/* BPM stepper */}
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-medium text-muted-foreground">Tempo</label>
+                        <div className="flex items-center gap-0 rounded-lg border border-border/40 overflow-hidden">
+                            <button
+                                onClick={() => metronome.setBpm(metronome.bpm - 1)}
+                                disabled={metronome.bpm <= 30}
+                                className="w-9 h-9 flex items-center justify-center text-sm font-bold text-muted-foreground hover:text-foreground hover:bg-muted/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all border-r border-border/40"
+                            >
+                                −
+                            </button>
+                            <div className="flex-1 h-9 flex items-center justify-center gap-1">
+                                <span className="text-base font-mono font-semibold tabular-nums text-foreground">
+                                    {metronome.bpm}
+                                </span>
+                                <span className="text-[10px] text-muted-foreground font-mono">BPM</span>
+                            </div>
+                            <button
+                                onClick={() => metronome.setBpm(metronome.bpm + 1)}
+                                disabled={metronome.bpm >= 300}
+                                className="w-9 h-9 flex items-center justify-center text-sm font-bold text-muted-foreground hover:text-foreground hover:bg-muted/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all border-l border-border/40"
+                            >
+                                +
+                            </button>
+                        </div>
+                        {/* Quick presets */}
+                        <div className="flex gap-1.5 pt-0.5">
+                            {[60, 90, 120, 140, 160].map(preset => (
+                                <button
+                                    key={preset}
+                                    onClick={() => metronome.setBpm(preset)}
+                                    className={`flex-1 py-1 rounded-md text-[10px] font-mono font-medium border transition-all ${
+                                        metronome.bpm === preset
+                                            ? "bg-primary/15 border-primary/40 text-primary"
+                                            : "bg-transparent border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted/20"
+                                    }`}
+                                >
+                                    {preset}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
 
                     {/* Volume */}
                     <div className="space-y-1.5">

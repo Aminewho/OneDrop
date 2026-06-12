@@ -1,14 +1,16 @@
 package com.music.OneDrop.Service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.music.OneDrop.Dto.AppConfig;
-import jakarta.annotation.PostConstruct;
-import org.springframework.stereotype.Service;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+
+import org.springframework.stereotype.Service;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.music.OneDrop.Dto.AppConfig;
+
+import jakarta.annotation.PostConstruct;
 
 
 
@@ -35,8 +37,8 @@ public class ConfigService {
             Files.createDirectories(CONFIG_FILE.getParent());
 
             AppConfig config = new AppConfig(
-                    "classic",
-                    "logo-classic.png",
+                    "modern",
+                    "bleu.png",
                     "OneDrop Demo"
             );
 

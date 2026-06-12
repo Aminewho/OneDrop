@@ -6,7 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 // Import du VideoStateProvider pour persister l'état
 // NOTE: L'extension de ce fichier pourrait être .jsx ou .tsx selon votre configuration
-import { applyTheme } from "@/assets/themes/themeManager";       // Import des composants et pages
+import { applyBranding } from "@/assets/themes/themeManager";       // Import des composants et pages
 import NavBar from "@/components/NavBar";
 import MusicPlayer from "@/components/MusicPlayer";
 import Videos from "@/pages/Videos";
@@ -30,27 +30,46 @@ function Router() {
 }
 
 function App() {
-  useEffect(() => {
-    const loadTheme = async () => {
-      try {
-        const response = await fetch("http://localhost:8081/api/config");
+ useEffect(() => {
 
-        if (!response.ok) {
-          throw new Error("Unable to load config");
-        }
+  const loadBranding = async () => {
 
-        const config = await response.json();
-        console.log("Theme loaded:", config.theme);
-        applyTheme(config.theme);
-      } catch (error) {
-        console.error("Theme loading failed:", error);
-        applyTheme("classic");
+    try {
+
+      const response = await fetch(
+        "http://localhost:8081/api/config"
+      );
+
+      if (!response.ok) {
+        throw new Error("Unable to load config");
       }
-    };
 
-    loadTheme();
-  }, []);
+      const config = await response.json();
 
+      console.log("Branding loaded:", config);
+
+      applyBranding(config);
+
+    } catch (error) {
+
+      console.error(
+        "Branding loading failed:",
+        error
+      );
+
+      applyBranding({
+        theme: "classic",
+        logo: "classic",
+        customer: "OneDrop"
+      });
+
+    }
+
+  };
+
+  loadBranding();
+
+}, []);
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
