@@ -165,13 +165,7 @@ Filename: "{app}\OneDrop.exe"; Description: "Launch OneDrop"; Flags: nowait post
 compress Your Executables with UPX (Saves 40% across all tools)
 
 Dynamic coloring : Plus tard je  n'aurais qu'à remplacer les valeurs statiques par les valeurs renvoyées par ton serveur distant et réécrire ce même config.json dans le fichier ConfigService.java Le frontend n'aura aucun changement à faire.
-
-bg-white
-bg-blue-600
-bg-red-500
-bg-black/80
-text-gray-400
-hover:bg-gray-700
+Pour ajouter un theme : il faut ajouter un theme dans index.css et ajouter un le theme dans branding.ts et le logos dans le dossier logos puis le fichier config.json servira le vrai theme. 
 
 git fetch origin 
 git reset --hard origin/stable-version
@@ -190,7 +184,6 @@ Copy-Item -Path C:\Users\a.ziadi\PROJECTS\OneDrop\OneDropMusic\dist\public\ -Des
 
 
 To Do : 
-- updating th logo logic.
-- youtube landing page logic 
-- metronome
-- spleeter rne
+- spotify refresh bug
+- Landing page youtube and spotify
+- history of search
