@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "react-hot-toast";
 import AlertModal from "@/components/AlertModal";
-import { Search, Link2, X, Youtube } from "lucide-react";
+import { Search, Link2, X } from "lucide-react";
 
 const API_BASE_URL = "http://localhost:8081";
 const LS_SEARCH_QUERY_KEY  = "videoSearchQuery_page";
@@ -26,7 +26,6 @@ interface Video {
   duration: string; channel: string; uploadedAt: string;
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
 function useLocalStorageState<T>(key: string, def: T): [T, React.Dispatch<React.SetStateAction<T>>] {
   const load = (): T => {
     try { const s = localStorage.getItem(key); if (s) return JSON.parse(s) as T; }
@@ -50,7 +49,6 @@ function formatDuration(iso: string | null | undefined): string {
   return p.join(":");
 }
 
-/** Returns YouTube video ID if input is a URL, otherwise null */
 function extractYoutubeId(input: string): string | null {
   const patterns = [
     /[?&]v=([a-zA-Z0-9_-]{11})/,
@@ -65,7 +63,17 @@ function extractYoutubeId(input: string): string | null {
   return null;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// YouTube wordmark SVG (red pill + white play, no hardcoded text color)
+function YoutubeLogo({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 90 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="28" height="20" rx="5" fill="hsl(var(--primary))"/>
+      <polygon points="11,6 11,14 20,10" fill="white"/>
+      <text x="33" y="15" fontFamily="Arial,sans-serif" fontWeight="700" fontSize="14" fill="currentColor">YouTube</text>
+    </svg>
+  );
+}
+
 export default function Videos() {
   const [searchQuery,  setSearchQuery]  = useLocalStorageState<string>(LS_SEARCH_QUERY_KEY, "");
   const [videos,       setVideos]       = useLocalStorageState<Video[]>(LS_VIDEOS_KEY, []);
@@ -73,23 +81,18 @@ export default function Videos() {
   const [isLoading,    setIsLoading]    = useState(false);
   const [error,        setError]        = useState<string | null>(null);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
-  // "url" mode when input is a YouTube link
-  const [inputMode, setInputMode] = useState<"search" | "url">("search");
+  const [inputMode,    setInputMode]    = useState<"search" | "url">("search");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Clean stale localStorage on mount
-  useEffect(() => {
-    setTaskStatuses(() => ({}));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const hasResults = videos.length > 0;
 
-  // Detect URL vs search query as user types
+  useEffect(() => { setTaskStatuses(() => ({})); }, []); // eslint-disable-line
+
   const handleInputChange = (value: string) => {
     setSearchQuery(value);
     setInputMode(extractYoutubeId(value) ? "url" : "search");
   };
 
-  // ── Fetch by search query ─────────────────────────────────────────────────
   const fetchByQuery = useCallback(async (query: string) => {
     if (!query.trim()) { setError("Please enter a search term."); return; }
     setIsLoading(true); setError(null); setVideos([]);
@@ -107,60 +110,42 @@ export default function Videos() {
     } finally { setIsLoading(false); }
   }, [setVideos]);
 
-  // ── Fetch single video by ID (URL mode) ──────────────────────────────────
   const fetchByUrl = useCallback(async (videoId: string) => {
     setIsLoading(true); setError(null); setVideos([]);
     try {
-      // Ask the backend for this specific video's info
       const res = await fetch(`${API_BASE_URL}/search/youtube?q=${encodeURIComponent(videoId)}&type=id`);
       if (res.ok) {
         const data: YoutubeApiResponse[] = await res.json();
         const match = data.find(v => v.videoId === videoId);
         if (match) {
-          setVideos([{
-            id: match.videoId, title: match.title, thumbnail: match.thumbnailUrl,
+          setVideos([{ id: match.videoId, title: match.title, thumbnail: match.thumbnailUrl,
             duration: formatDuration(match.duration), channel: match.channelTitle,
-            uploadedAt: new Date(match.publishedAt).toLocaleDateString(),
-          }]);
+            uploadedAt: new Date(match.publishedAt).toLocaleDateString() }]);
           return;
         }
       }
-      // Fallback: construct minimal card from the ID alone (thumbnail is always public)
-      setVideos([{
-        id: videoId, title: "Loading title...", channel: "YouTube",
-        thumbnail: `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
-        duration: "--:--", uploadedAt: "",
-      }]);
+      setVideos([{ id: videoId, title: "YouTube Video", channel: "YouTube",
+        thumbnail: `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`, duration: "--:--", uploadedAt: "" }]);
     } catch {
-      setVideos([{
-        id: videoId, title: "YouTube Video", channel: "YouTube",
-        thumbnail: `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
-        duration: "--:--", uploadedAt: "",
-      }]);
+      setVideos([{ id: videoId, title: "YouTube Video", channel: "YouTube",
+        thumbnail: `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`, duration: "--:--", uploadedAt: "" }]);
     } finally { setIsLoading(false); }
   }, [setVideos]);
 
-  // ── Handle form submit ────────────────────────────────────────────────────
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const id = extractYoutubeId(searchQuery);
-    if (id) fetchByUrl(id);
-    else    fetchByQuery(searchQuery);
+    if (id) fetchByUrl(id); else fetchByQuery(searchQuery);
   };
 
   const clearSearch = () => {
     setSearchQuery(""); setVideos([]); setError(null);
-    setInputMode("search");
-    inputRef.current?.focus();
+    setInputMode("search"); inputRef.current?.focus();
   };
 
-  // ── Process video ─────────────────────────────────────────────────────────
   const handleProcessVideo = useCallback(async (videoId: string) => {
     const cur = taskStatuses[videoId];
-    if (cur && cur !== "FAILED") {
-      toast.error(`Already ${cur.toLowerCase()} for this video.`);
-      return;
-    }
+    if (cur && cur !== "FAILED") { toast.error(`Already ${cur.toLowerCase()} for this video.`); return; }
     setTaskStatuses(prev => ({ ...prev, [videoId]: "PENDING" }));
     const toastId = toast.loading("Starting processing...");
     try {
@@ -171,12 +156,10 @@ export default function Videos() {
       });
       if (res.status === 409) {
         const msg = await res.text();
-        toast.dismiss(toastId);
-        setAlertMessage(msg);
-        setTaskStatuses(prev => { const n = { ...prev }; delete n[videoId]; return n; });
-        return;
+        toast.dismiss(toastId); setAlertMessage(msg);
+        setTaskStatuses(prev => { const n = { ...prev }; delete n[videoId]; return n; }); return;
       }
-      if (!res.ok) throw new Error(`${res.status} — ${await res.text()}`);
+      if (!res.ok) throw new Error(`${res.status}`);
       toast.success("Processing started.", { id: toastId });
     } catch {
       setTaskStatuses(prev => { const n = { ...prev }; delete n[videoId]; return n; });
@@ -184,127 +167,180 @@ export default function Videos() {
     }
   }, [taskStatuses, setTaskStatuses, videos]);
 
-  // ── Poll status ───────────────────────────────────────────────────────────
   const pollTaskStatus = useCallback(async (videoId: string, cur: TaskStatus) => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/audio/status?videoId=${encodeURIComponent(videoId)}`);
-      if (res.status === 404) {
-        setTaskStatuses(prev => { const n = { ...prev }; delete n[videoId]; return n; });
-        return true;
-      }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (res.status === 404) { setTaskStatuses(prev => { const n={...prev}; delete n[videoId]; return n; }); return true; }
+      if (!res.ok) throw new Error();
       const status = (await res.text()).trim() as TaskStatus;
       if (status !== cur) {
         setTaskStatuses(prev => ({ ...prev, [videoId]: status }));
-        if      (status === "DOWNLOADING") toast.loading("Downloading audio...", { id: videoId });
-        else if (status === "SEPARATING")  toast.loading("Separating stems...",  { id: videoId });
+        if (status === "DOWNLOADING") toast.loading("Downloading...", { id: videoId });
+        else if (status === "SEPARATING") toast.loading("Separating stems...", { id: videoId });
       }
       if (status === "COMPLETED" || status === "FAILED") {
-        status === "COMPLETED"
-          ? toast.success("Ready!", { id: videoId })
-          : toast.error("Failed.", { id: videoId });
-        setTaskStatuses(prev => { const n = { ...prev }; delete n[videoId]; return n; });
-        return true;
+        status === "COMPLETED" ? toast.success("Ready!", { id: videoId }) : toast.error("Failed.", { id: videoId });
+        setTaskStatuses(prev => { const n={...prev}; delete n[videoId]; return n; }); return true;
       }
       return false;
-    } catch {
-      setTaskStatuses(prev => { const n = { ...prev }; delete n[videoId]; return n; });
-      return true;
-    }
+    } catch { setTaskStatuses(prev => { const n={...prev}; delete n[videoId]; return n; }); return true; }
   }, [setTaskStatuses]);
 
   useEffect(() => {
-    const active = Object.entries(taskStatuses).filter(([, s]) =>
-      s === "PENDING" || s === "DOWNLOADING" || s === "SEPARATING"
-    );
+    const active = Object.entries(taskStatuses).filter(([,s]) => s==="PENDING"||s==="DOWNLOADING"||s==="SEPARATING");
     if (!active.length) return;
-    const id = setInterval(() => {
-      active.forEach(([vid, s]) => pollTaskStatus(vid, s as TaskStatus));
-    }, 3000);
+    const id = setInterval(() => active.forEach(([vid,s]) => pollTaskStatus(vid, s as TaskStatus)), 3000);
     return () => clearInterval(id);
   }, [taskStatuses, pollTaskStatus]);
 
   const isUrlMode = inputMode === "url";
 
+  // ── Shared search bar ─────────────────────────────────────────────────────
+  const SearchBar = (
+    <form onSubmit={handleSearch} className="w-full">
+      <div className="flex gap-3 items-center">
+        <div className="relative flex-1">
+          {/* YouTube logo pill */}
+          <div className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none">
+            {isUrlMode
+              ? <Link2 className="w-4 h-4 text-primary" />
+              : (
+                <svg viewBox="0 0 20 14" className="w-5 h-3.5">
+                  <rect width="20" height="14" rx="3.5" fill="hsl(var(--primary))"/>
+                  <polygon points="8,3.5 8,10.5 14.5,7" fill="white"/>
+                </svg>
+              )
+            }
+          </div>
+
+          <Input
+            ref={inputRef}
+            value={searchQuery}
+            onChange={e => handleInputChange(e.target.value)}
+            placeholder="Search artists, songs… or paste a YouTube URL"
+            className="pl-11 pr-10 h-12 bg-card border-border/50 focus:border-primary/50 transition-colors text-sm placeholder:text-muted-foreground/50 rounded-xl shadow-sm"
+            data-testid="input-search"
+            autoComplete="off"
+          />
+
+          {/* URL badge */}
+          {isUrlMode && (
+            <div className="absolute right-10 top-1/2 -translate-y-1/2 flex items-center gap-1 px-1.5 py-0.5 rounded bg-primary/10 border border-primary/20">
+              <span className="text-[9px] font-bold text-primary tracking-wider uppercase">URL</span>
+            </div>
+          )}
+
+          {searchQuery && (
+            <button type="button" onClick={clearSearch}
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-all">
+              <X className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+
+        <Button type="submit" disabled={isLoading || !searchQuery.trim()}
+          className="h-12 px-6 rounded-xl font-medium shrink-0 shadow-sm">
+          {isLoading ? "Searching…" : isUrlMode ? "Load" : "Search"}
+        </Button>
+      </div>
+
+      {isUrlMode && (
+        <p className="mt-2 ml-1 text-xs text-primary/70 flex items-center gap-1.5">
+          <Link2 className="w-3 h-3" />
+          YouTube URL detected — click <strong>Load</strong> to fetch it directly
+        </p>
+      )}
+    </form>
+  );
+
+  // ── HERO STATE (no results) ────────────────────────────────────────────────
+  if (!hasResults && !isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <AlertModal message={alertMessage} onClose={() => setAlertMessage(null)} title="Already Processed" variant="warning" />
+
+        {/* Centered hero */}
+        <div className="flex-1 flex flex-col items-center justify-center px-6 pb-24">
+          <div className="w-full max-w-2xl space-y-10 text-center">
+
+            {/* Hero text */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-center gap-2.5 mb-2">
+                <svg viewBox="0 0 24 17" className="w-8 h-[22px]">
+                  <rect width="24" height="17" rx="4" fill="hsl(var(--primary))"/>
+                  <polygon points="9.5,4.5 9.5,12.5 17,8.5" fill="white"/>
+                </svg>
+                <span className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">
+                  YouTube Search
+                </span>
+              </div>
+
+              <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-foreground leading-tight">
+                Every song.<br />
+                <span style={{ color: "hsl(var(--primary))" }}>Every layer.</span>
+              </h1>
+              <p className="text-base text-muted-foreground max-w-sm mx-auto leading-relaxed">
+                Search any track or paste a YouTube link to isolate vocals, drums, bass and more.
+              </p>
+            </div>
+
+            {/* Search bar */}
+            {SearchBar}
+
+            {/* Error */}
+            {error && (
+              <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-destructive/8 border border-destructive/20 text-sm text-destructive text-left">
+                <X className="w-4 h-4 shrink-0" />{error}
+              </div>
+            )}
+
+            {/* Quick suggestions */}
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground/60 uppercase tracking-widest">Popular searches</p>
+              <div className="flex flex-wrap justify-center gap-2">
+                {["Miles Davis", "Daft Punk", "Kendrick Lamar", "Pink Floyd", "The Beatles"].map(s => (
+                  <button
+                    key={s}
+                    onClick={() => { setSearchQuery(s); fetchByQuery(s); }}
+                    className="px-3 py-1.5 rounded-full text-xs font-medium border border-border/40 text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-primary/5 transition-all"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── RESULTS STATE ──────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-background">
       <AlertModal message={alertMessage} onClose={() => setAlertMessage(null)} title="Already Processed" variant="warning" />
 
-      <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+      <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
 
-        {/* ── Header ─────────────────────────────────────────────────────── */}
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Discover</h1>
-          <p className="text-sm text-muted-foreground">Search YouTube or paste a video link to extract stems</p>
-        </div>
+        {/* Compact search bar at top */}
+        <div className="max-w-2xl">{SearchBar}</div>
 
-        {/* ── Search / URL bar ───────────────────────────────────────────── */}
-        <form onSubmit={handleSearch}>
-          <div className="flex gap-3 items-center">
-
-            {/* Input wrapper */}
-            <div className="relative flex-1 group">
-              {/* Icon: switches between search and URL indicator */}
-              <div className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none transition-all duration-200">
-                {isUrlMode
-                  ? <Youtube className="w-4 h-4 text-primary" />
-                  : <Search  className="w-4 h-4 text-muted-foreground" />
-                }
-              </div>
-
-              <Input
-                ref={inputRef}
-                value={searchQuery}
-                onChange={e => handleInputChange(e.target.value)}
-                placeholder="Search artists, songs… or paste a YouTube URL"
-                className="pl-10 pr-10 h-11 bg-card border-border/60 focus:border-primary/60 transition-colors text-sm placeholder:text-muted-foreground/60 rounded-xl"
-                data-testid="input-search"
-              />
-
-              {/* URL mode badge */}
-              {isUrlMode && (
-                <div className="absolute right-10 top-1/2 -translate-y-1/2 flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 border border-primary/20">
-                  <Link2 className="w-3 h-3 text-primary" />
-                  <span className="text-[10px] font-semibold text-primary tracking-wide">URL</span>
-                </div>
-              )}
-
-              {/* Clear button */}
-              {searchQuery && (
-                <button type="button" onClick={clearSearch}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-all">
-                  <X className="w-3 h-3" />
-                </button>
-              )}
-            </div>
-
-            <Button
-              type="submit"
-              disabled={isLoading || !searchQuery.trim()}
-              className="h-11 px-6 rounded-xl font-medium shrink-0"
-              data-testid="button-search"
-            >
-              {isLoading ? "Searching…" : isUrlMode ? "Load video" : "Search"}
-            </Button>
-          </div>
-
-          {/* URL detected hint */}
-          {isUrlMode && (
-            <p className="mt-2 ml-1 text-xs text-primary/80 flex items-center gap-1.5">
-              <Link2 className="w-3 h-3" />
-              YouTube URL detected — click <strong>Load video</strong> to fetch it directly
-            </p>
-          )}
-        </form>
-
-        {/* ── Error ─────────────────────────────────────────────────────── */}
+        {/* Error */}
         {error && (
-          <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-destructive/8 border border-destructive/20 text-sm text-destructive">
+          <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-destructive/8 border border-destructive/20 text-sm text-destructive">
             <X className="w-4 h-4 shrink-0" />{error}
           </div>
         )}
 
-        {/* ── Results ───────────────────────────────────────────────────── */}
+        {/* Result count */}
+        {!isLoading && videos.length > 0 && (
+          <p className="text-xs text-muted-foreground">
+            {videos.length} result{videos.length !== 1 ? "s" : ""}
+            {isUrlMode ? " for that URL" : ` for "${searchQuery}"`}
+          </p>
+        )}
+
+        {/* Grid */}
         {isLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {Array.from({ length: isUrlMode ? 1 : 8 }).map((_, i) => (
@@ -315,45 +351,17 @@ export default function Videos() {
               </div>
             ))}
           </div>
-        ) : videos.length > 0 ? (
-          <>
-            {/* Result count */}
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-muted-foreground">
-                {videos.length} result{videos.length !== 1 ? "s" : ""}
-                {isUrlMode ? " for that URL" : ` for "${searchQuery}"`}
-              </p>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-              {videos.map(video => (
-                <VideoCard
-                  key={video.id}
-                  video={video}
-                  onProcess={handleProcessVideo}
-                  taskStatus={taskStatuses[video.id]}
-                />
-              ))}
-            </div>
-          </>
         ) : (
-          /* Empty state */
-          !error && (
-            <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-muted/40 border border-border/40 flex items-center justify-center">
-                <Search className="w-6 h-6 text-muted-foreground/60" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-foreground">
-                  {searchQuery ? `No results for "${searchQuery}"` : "Start exploring"}
-                </p>
-                <p className="text-xs text-muted-foreground max-w-xs">
-                  {searchQuery
-                    ? "Try a different search term or paste a YouTube URL directly"
-                    : "Search for a song, artist, or paste a YouTube URL to get started"}
-                </p>
-              </div>
-            </div>
-          )
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+            {videos.map(video => (
+              <VideoCard
+                key={video.id}
+                video={video}
+                onProcess={handleProcessVideo}
+                taskStatus={taskStatuses[video.id]}
+              />
+            ))}
+          </div>
         )}
       </div>
     </div>
