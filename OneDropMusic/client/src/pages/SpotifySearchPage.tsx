@@ -819,159 +819,169 @@ useEffect(() => {
     const shouldShowResultsSection = totalResults > 0;
     
     return (
-        <div className="container mx-auto p-4 max-w-4xl relative">
+    <div className="min-h-screen bg-background">
             
             {/* --- ALBUM MODAL --- */}
-            {selectedAlbum && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-                    <Card className="w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col bg-background border-border shadow-2xl">
-                        <div className="p-4 border-b flex items-start gap-4 bg-muted/30">
-                            <div className="w-24 h-24 rounded-md overflow-hidden shadow-md flex-shrink-0">
-                                <img src={selectedAlbum.details.image} alt={selectedAlbum.details.name} className="w-full h-full object-cover" />
-                            </div>
-                            <div className="flex-1">
-                                <h2 className="text-xl font-bold">{selectedAlbum.details.name}</h2>
-                                <p className="text-muted-foreground text-sm flex items-center gap-2 mt-1">
-                                    <Calendar className="w-3 h-3" /> {selectedAlbum.details.releaseDate}
-                                    <span className="mx-1">•</span>
-                                    <Music className="w-3 h-3" /> {selectedAlbum.details.totalTracks} tracks
+              {selectedAlbum && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                <Card className="w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col bg-background border-border shadow-2xl">
+                    <div className="p-4 border-b flex items-start gap-4 bg-muted/30">
+                        <div className="w-24 h-24 rounded-md overflow-hidden shadow-md flex-shrink-0">
+                            <img src={selectedAlbum.details.image} alt={selectedAlbum.details.name} className="w-full h-full object-cover" />
+                        </div>
+                        <div className="flex-1">
+                            <h2 className="text-xl font-bold">{selectedAlbum.details.name}</h2>
+                            <p className="text-muted-foreground text-sm flex items-center gap-2 mt-1">
+                                <Calendar className="w-3 h-3" /> {selectedAlbum.details.releaseDate}
+                                <span className="mx-1">•</span>
+                                <Music className="w-3 h-3" /> {selectedAlbum.details.totalTracks} tracks
+                            </p>
+                        </div>
+                        <Button variant="ghost" size="icon" onClick={() => setSelectedAlbum(null)}>
+                            <X className="w-6 h-6" />
+                        </Button>
+                    </div>
+                    <div className="overflow-y-auto p-2 flex-1 custom-scrollbar">
+                        {selectedAlbum.tracks.length === 0 ? (
+                            <div className="p-8 text-center text-muted-foreground">No tracks found.</div>
+                        ) : (
+                            <table className="w-full text-sm">
+                                <thead className="text-left text-muted-foreground border-b">
+                                    <tr>
+                                        <th className="p-2 w-10">#</th>
+                                        <th className="p-2">Title</th>
+                                        <th className="p-2 text-right"><Clock className="w-4 h-4 ml-auto" /></th>
+                                        <th className="p-2 w-16"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {selectedAlbum.tracks.map((track) => (
+                                        <tr key={track.id}
+                                            onClick={() => handleProcessTrack({ id: track.id, type: 'track', name: track.name, image_url: selectedAlbum.details.image, artists: track.artists.map((a: any) => ({ id: a.id || '0', name: a.name })), description: '', external_url: track.spotifyUrl, uri: '' } as SearchItem)}
+                                            className="hover:bg-accent/50 group transition-colors cursor-pointer">
+                                            <td className="p-2 text-muted-foreground">{track.trackNumber}</td>
+                                            <td className="p-2 font-medium">
+                                                <div className="truncate text-foreground">{track.name}</div>
+                                                <div className="truncate text-xs text-muted-foreground">{track.artists.map(a => a.name).join(', ')}</div>
+                                            </td>
+                                            <td className="p-2 text-right text-muted-foreground font-mono">{formatDuration(track.durationMs)}</td>
+                                            <td className="p-2 text-right">
+                                                <CustomPlayButton className="h-8 w-8 opacity-0 group-hover:opacity-100"
+                                                    onClick={() => handleProcessTrack({ id: track.id, type: 'track', name: track.name, image_url: selectedAlbum.details.image, artists: track.artists.map((a: any) => ({ id: a.id || '0', name: a.name })), description: '', external_url: track.spotifyUrl, uri: '' } as SearchItem)} />
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
+                </Card>
+            </div>
+        )}
+
+        {/* ── Shared search bar ─────────────────────────────────────────── */}
+        {(() => {
+            const searchBar = (
+                <form onSubmit={handleSearch} className="flex gap-3 items-center w-full">
+                    <div className="relative flex-1">
+                        {/* Spotify logo mark */}
+                        <div className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                            <svg viewBox="0 0 24 24" className="w-4 h-4" fill="hsl(var(--primary))">
+                                <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
+                            </svg>
+                        </div>
+                        <Input
+                            type="search"
+                            placeholder={artistTracksView ? `Viewing ${artistTracksView.artistName}…` : "Search tracks, artists or albums…"}
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                            disabled={isSearching}
+                            className="pl-11 pr-4 h-12 bg-card border-border/50 focus:border-primary/50 transition-colors text-sm placeholder:text-muted-foreground/50 rounded-xl shadow-sm"
+                        />
+                    </div>
+                    <Button type="submit" disabled={isSearching} className="h-12 px-6 rounded-xl font-medium shrink-0 shadow-sm">
+                        {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : "Search"}
+                    </Button>
+                </form>
+            );
+
+            // ── HERO (no results yet) ──────────────────────────────────────
+            if (!shouldShowResultsSection && !artistTracksView) {
+                return (
+                    <div className="flex-1 flex flex-col items-center justify-center min-h-screen px-6 pb-24">
+                        <div className="w-full max-w-2xl space-y-10 text-center">
+
+                            {/* Hero text */}
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-center gap-2.5 mb-2">
+                                    <svg viewBox="0 0 24 24" className="w-7 h-7" fill="hsl(var(--primary))">
+                                        <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
+                                    </svg>
+                                    <span className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Spotify Search</span>
+                                </div>
+                                <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-foreground leading-tight">
+                                    Any track.<br />
+                                    <span style={{ color: "hsl(var(--primary))" }}>Isolated.</span>
+                                </h1>
+                                <p className="text-base text-muted-foreground max-w-sm mx-auto leading-relaxed">
+                                    Search Spotify to find any song, then extract its vocals, drums, bass and more.
                                 </p>
                             </div>
-                            <Button variant="ghost" size="icon" onClick={() => setSelectedAlbum(null)}>
-                                <X className="w-6 h-6" />
-                            </Button>
+
+                            {/* Search bar */}
+                            {searchBar}
+
+                            {/* Quick suggestions */}
+                            <div className="space-y-2">
+                                <p className="text-xs text-muted-foreground/60 uppercase tracking-widest">Popular searches</p>
+                                <div className="flex flex-wrap justify-center gap-2">
+                                    {["Miles Davis", "Daft Punk", "Kendrick Lamar", "Pink Floyd", "The Beatles"].map(s => (
+                                        <button key={s}
+                                            onClick={() => { setSearchQuery(s); handleSearch({ preventDefault: () => {} } as any); }}
+                                            className="px-3 py-1.5 rounded-full text-xs font-medium border border-border/40 text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-primary/5 transition-all">
+                                            {s}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
-
-                        <div className="overflow-y-auto p-2 flex-1 custom-scrollbar">
-                            {selectedAlbum.tracks.length === 0 ? (
-                                <div className="p-8 text-center text-muted-foreground">No tracks found.</div>
-                            ) : (
-                                <table className="w-full text-sm">
-                                    <thead className="text-left text-muted-foreground border-b">
-                                        <tr>
-                                            <th className="p-2 w-10">#</th>
-                                            <th className="p-2">Title</th>
-                                            <th className="p-2 text-right"><Clock className="w-4 h-4 ml-auto" /></th>
-                                            <th className="p-2 w-16"></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {selectedAlbum.tracks.map((track) => (
-    <tr 
-        key={track.id} 
-        // 1. On déplace le clic sur toute la ligne
-        onClick={() => handleProcessTrack({
-            id: track.id, 
-            type: 'track', 
-            name: track.name, 
-            image_url: selectedAlbum.details.image,
-            artists: track.artists.map((a: any) => ({ id: a.id || '0', name: a.name })), 
-            description: '', 
-            external_url: track.spotifyUrl, 
-            uri: ''
-        } as SearchItem)}
-        // 2. On ajoute cursor-pointer pour indiquer que c'est cliquable
-        className="hover:bg-accent/50 group transition-colors cursor-pointer"
-    >
-        <td className="p-2 text-muted-foreground">{track.trackNumber}</td>
-        <td className="p-2 font-medium">
-            <div className="truncate text-foreground">{track.name}</div>
-            <div className="truncate text-xs text-muted-foreground">
-                {track.artists.map(a => a.name).join(', ')}
-            </div>
-        </td>
-        <td className="p-2 text-right text-muted-foreground font-mono">
-            {formatDuration(track.durationMs)}
-        </td>
-        
-        <td className="p-2 text-right">
-            {/* 3. On garde le bouton pour le visuel, mais il n'a plus besoin de son propre onClick */}
-               <CustomPlayButton 
-                    className="h-8 w-8 opacity-0 group-hover:opacity-100" 
-                    onClick={() => handleProcessTrack({
-                        id: track.id, 
-                        type: 'track', 
-                        name: track.name, 
-                        image_url: selectedAlbum.details.image,
-                        // Correction : On passe les vrais artistes au lieu de []
-                        artists: track.artists.map((a: any) => ({ id: a.id || '0', name: a.name })), 
-                        description: '', 
-                        external_url: track.spotifyUrl, 
-                        uri: ''
-                    } as SearchItem)} 
-                />
-       </td>
-    </tr>
-            ))}
-                                    </tbody>
-                                </table>
-                            )}
-                        </div>
-                    </Card>
-                </div>
-            )}
-
-
-            {/* --- SEARCH FORM --- */}
-            <form onSubmit={handleSearch} className="flex gap-2 mb-6">
-                <Input
-                    type="search"
-                    placeholder={artistTracksView ? `Viewing ${artistTracksView.artistName}...` : "Search for tracks, artists, or albums..."}
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    disabled={isSearching}
-                    className="flex-1"
-                />
-                <Button type="submit" disabled={isSearching} className="w-32">
-                    {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
-                    Search
-                </Button>
-            </form>
-
-            {/* --- NEW: VIDEO PLAYER & PROCESSING --- */}
-            {renderProcessingSection()}
-
-            {/* --- RESULTS SECTION --- */}
-            {(shouldShowResultsSection || artistTracksView) && (
-                <section>
-                    <div className="flex justify-between items-center pt-4 mb-4 border-b pb-2">
-                      <div className="flex flex-col gap-1">
-  <div className="flex items-center gap-3">
-    <h2 className="text-2xl font-bold tracking-tight">
-      {artistTracksView ? (
-        <span className="flex items-center gap-2">
-          <span className="text-muted-foreground font-normal">Artist:</span> 
-          {artistTracksView.artistName}
-        </span>
-      ) : (
-        "Search Results"
-      )}
-    </h2>
-  </div>
-
-  {/* Sous-titre dynamique pour donner du contexte */}
-  <p className="text-sm text-muted-foreground ml-1">
-    {artistTracksView 
-      ? `Showing top tracks and albums` 
-      : searchQuery 
-        ? `Top matches for "${searchQuery}"` 
-        : "Discover new music"}
-  </p>
-</div>
-                        
-                   
                     </div>
-                    
-                    {!artistTracksView && (
-                        <div className="flex flex-wrap gap-2 border-b pb-2 mb-4">
-                           
-                        </div>
+                );
+            }
+
+            // ── RESULTS ────────────────────────────────────────────────────
+            return (
+                <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
+                    {/* Compact search bar */}
+                    <div className="max-w-2xl">{searchBar}</div>
+
+                    {/* Processing section */}
+                    {renderProcessingSection()}
+
+                    {/* Results */}
+                    {(shouldShowResultsSection || artistTracksView) && (
+                        <section>
+                            <div className="flex justify-between items-center pt-2 mb-4 border-b pb-3">
+                                <div className="flex flex-col gap-1">
+                                    <h2 className="text-xl font-bold tracking-tight">
+                                        {artistTracksView
+                                            ? <span className="flex items-center gap-2"><span className="text-muted-foreground font-normal">Artist:</span>{artistTracksView.artistName}</span>
+                                            : "Search Results"}
+                                    </h2>
+                                    <p className="text-sm text-muted-foreground">
+                                        {artistTracksView
+                                            ? "Top tracks and albums"
+                                            : searchQuery ? `Top matches for "${searchQuery}"` : "Discover new music"}
+                                    </p>
+                                </div>
+                            </div>
+                            {artistTracksView ? renderArtistDetailView() : renderSearchResults()}
+                        </section>
                     )}
-                    
-                    {artistTracksView ? renderArtistDetailView() : renderSearchResults()}
-                </section>
-            )}
-        </div>
-    );
+                </div>
+            );
+        })()}
+    </div>
+);
 
 }
