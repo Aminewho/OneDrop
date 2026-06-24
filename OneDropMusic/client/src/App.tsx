@@ -23,7 +23,7 @@ function Router() {
       <Route path="/" component={Videos} />
       <Route path="/separator" component={Separator} />
       <Route path="/library" component={Library} />
-      <Route path="/search-spotify" component={SpotifySearchPage}/>
+      <Route path="/spotify" component={SpotifySearchPage}/>
 
     </Switch>
   );

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useLocation } from 'wouter';
 import { toast } from 'react-hot-toast';
 import { Card } from "@/components/ui/card";
@@ -14,6 +14,8 @@ import {
     Artist 
 } from '../components/useSpotifyApi'; 
 import AlertModal from "@/components/AlertModal";
+import { useSearchHistory } from '@/hooks/useSearchHistory';
+import SearchHistoryDropdown from '@/components/SearchHistoryDropdown';
 
 // --- Interfaces ---
 
@@ -136,13 +138,15 @@ export default function SpotifySearchPage() {
     const [searchResults, setSearchResults] = useState<SpotifySearchResults>({
         tracks: [], artists: [], albums: [],
     });
-
-    // --- DETAIL VIEW STATES ---
+   const hasSearched = useRef(false);    // --- DETAIL VIEW STATES ---
     const [artistTracksView, setArtistTracksView] = useState<{ artistName: string, tracks: any[] } | null>(null);
     const [artistAlbums, setArtistAlbums] = useState<AlbumData[]>([]);
     const [selectedAlbum, setSelectedAlbum] = useState<{ details: AlbumData, tracks: AlbumTrackData[] } | null>(null);
     const [isLoadingAlbum, setIsLoadingAlbum] = useState(false);
+const [isDropdownVisible, setIsDropdownVisible] = useState(false);
 
+// Initialisation de la logique d'historique connectée à Spring Boot
+const { history, push, remove, clear } = useSearchHistory("spotify")
     // --- PROCESSING STATE (Youtube + Spleeter) ---
     const [activeProcessingTrack, setActiveProcessingTrack] = useState<ProcessingTrackState | null>(null);
     const [alertMessage, setAlertMessage] = useState<string | null>(null);
@@ -422,10 +426,16 @@ console.log("YouTube Search URL:", query);
         }
     };
     
- const handleSearch = useCallback(async (e?: React.FormEvent) => {
+const handleSearch = useCallback(async (e?: React.FormEvent, customQuery?: string) => {
     e?.preventDefault();
-    if (!searchQuery.trim()) return;
-
+    
+    // Si une customQuery est fournie (clic historique), on utilise celle-ci, sinon le state
+    const queryToSearch = customQuery !== undefined ? customQuery : searchQuery;
+    const trimmed = queryToSearch.trim();
+    
+    if (!trimmed) return;
+    
+    hasSearched.current = true;
     setIsSearching(true);
     setArtistTracksView(null);
     setArtistAlbums([]);
@@ -433,9 +443,15 @@ console.log("YouTube Search URL:", query);
     setActiveProcessingTrack(null);
     setSearchResults({ tracks: [], artists: [], albums: [] });
     setActiveTab('All');
+    
+    // Fermer le dropdown dès que la recherche commence
+    setIsDropdownVisible(false);
 
     try {
-        const results = await searchSpotify(searchQuery);
+        // Sauvegarde de manière optimiste dans le localStorage + DB Spring Boot
+        push(trimmed);
+
+        const results = await searchSpotify(trimmed);
 
         const filteredResults = {
             ...results,
@@ -455,7 +471,7 @@ console.log("YouTube Search URL:", query);
     } finally {
         setIsSearching(false);
     }
-}, [searchQuery, searchSpotify]);
+}, [searchQuery, searchSpotify, push]);
 
 // --- Persistence: load saved state from localStorage on mount ---
 useEffect(() => {
@@ -880,33 +896,52 @@ useEffect(() => {
         )}
 
         {/* ── Shared search bar ─────────────────────────────────────────── */}
-        {(() => {
-            const searchBar = (
-                <form onSubmit={handleSearch} className="flex gap-3 items-center w-full">
-                    <div className="relative flex-1">
-                        {/* Spotify logo mark */}
-                        <div className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none">
-                            <svg viewBox="0 0 24 24" className="w-4 h-4" fill="hsl(var(--primary))">
-                                <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
-                            </svg>
-                        </div>
-                        <Input
-                            type="search"
-                            placeholder={artistTracksView ? `Viewing ${artistTracksView.artistName}…` : "Search tracks, artists or albums…"}
-                            value={searchQuery}
-                            onChange={e => setSearchQuery(e.target.value)}
-                            disabled={isSearching}
-                            className="pl-11 pr-4 h-12 bg-card border-border/50 focus:border-primary/50 transition-colors text-sm placeholder:text-muted-foreground/50 rounded-xl shadow-sm"
-                        />
-                    </div>
-                    <Button type="submit" disabled={isSearching} className="h-12 px-6 rounded-xl font-medium shrink-0 shadow-sm">
-                        {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : "Search"}
-                    </Button>
-                </form>
-            );
+     {/* ── Shared search bar ─────────────────────────────────────────── */}
+{(() => {
+    const searchBar = (
+        <form onSubmit={(e) => handleSearch(e)} className="flex gap-3 items-center w-full">
+            <div className="relative flex-1">
+                {/* Spotify logo mark */}
+                <div className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="hsl(var(--primary))">
+                        <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
+                    </svg>
+                </div>
+                
+                <Input
+                    type="search"
+                    placeholder={artistTracksView ? `Viewing ${artistTracksView.artistName}…` : "Search tracks, artists or albums…"}
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    // Gestion du focus
+                    onFocus={() => setIsDropdownVisible(true)}
+                    // Gestion du blur avec délai (200ms) pour capter le clic sur l'historique avant sa fermeture
+                    onBlur={() => setTimeout(() => setIsDropdownVisible(false), 200)}
+                    disabled={isSearching}
+                    className="pl-11 pr-4 h-12 bg-card border-border/50 focus:border-primary/50 transition-colors text-sm placeholder:text-muted-foreground/50 rounded-xl shadow-sm"
+                />
 
+                {/* Insertion du Dropdown réutilisable configuré pour Spotify */}
+                <SearchHistoryDropdown
+                    history={history}
+                    visible={isDropdownVisible}
+                    onRemove={remove}
+                    onClear={clear}
+                    onSelect={(query) => {
+                        setSearchQuery(query);
+                        // Lance la recherche immédiatement au clic sur un ancien mot-clé
+                        handleSearch(undefined, query);
+                    }}
+                />
+            </div>
+            <Button type="submit" disabled={isSearching} className="h-12 px-6 rounded-xl font-medium shrink-0 shadow-sm">
+                {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : "Search"}
+            </Button>
+        </form>
+    );
+   
             // ── HERO (no results yet) ──────────────────────────────────────
-            if (!shouldShowResultsSection && !artistTracksView) {
+            if (!shouldShowResultsSection && !artistTracksView && !hasSearched.current) {
                 return (
                     <div className="flex-1 flex flex-col items-center justify-center min-h-screen px-6 pb-24">
                         <div className="w-full max-w-2xl space-y-10 text-center">
@@ -931,19 +966,7 @@ useEffect(() => {
                             {/* Search bar */}
                             {searchBar}
 
-                            {/* Quick suggestions */}
-                            <div className="space-y-2">
-                                <p className="text-xs text-muted-foreground/60 uppercase tracking-widest">Popular searches</p>
-                                <div className="flex flex-wrap justify-center gap-2">
-                                    {["Miles Davis", "Daft Punk", "Kendrick Lamar", "Pink Floyd", "The Beatles"].map(s => (
-                                        <button key={s}
-                                            onClick={() => { setSearchQuery(s); handleSearch({ preventDefault: () => {} } as any); }}
-                                            className="px-3 py-1.5 rounded-full text-xs font-medium border border-border/40 text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-primary/5 transition-all">
-                                            {s}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
+                        
                         </div>
                     </div>
                 );

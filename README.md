@@ -119,7 +119,8 @@ yt-dlp.exe -U
 Est-ce que tu veux que je te donne la commande PowerShell pour télécharger la dernière version directement dans ton dossier tools sans passer par le navigateur?
 
 # Generation setup.exe 
-mettre l jar dans input a code de models et tools puis executer cette commande dans powershell
+dans le dossier release :
+mettre le jar dans input a coté de models et tools puis executer cette commande dans powershell
 jpackage `
   --name OneDrop `
   --input input `
@@ -184,6 +185,4 @@ Copy-Item -Path C:\Users\a.ziadi\PROJECTS\OneDrop\OneDropMusic\dist\public\ -Des
 
 
 To Do : 
-- spotify refresh bug
-- Landing page youtube and spotify
 - history of search
