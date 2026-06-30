@@ -20,13 +20,18 @@ export default function SearchHistoryDropdown({
     if (!visible || history.length === 0) return null;
 
     return (
-        <div className="absolute top-full left-0 right-0 mt-1.5 z-50 rounded-xl border border-border/50 bg-card shadow-lg overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+         
+        <div
+            onMouseDown={(e) => e.preventDefault()}
+            className="absolute top-full left-0 right-0 mt-1.5 z-50 rounded-xl border border-border/50 bg-card shadow-lg overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150"
+        >
             {/* Header */}
             <div className="flex items-center justify-between px-3 py-2 border-b border-border/30">
                 <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
                     Recent searches
                 </span>
                 <button
+                type="button"  
                     onClick={onClear}
                     className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-destructive transition-colors"
                 >
@@ -39,6 +44,7 @@ export default function SearchHistoryDropdown({
                 {history.map((q, i) => (
                     <li key={i} className="flex items-center group">
                         <button
+                            type="button"
                             onClick={() => onSelect(q)}
                             className="flex items-center gap-2.5 flex-1 px-3 py-2.5 text-sm text-left hover:bg-muted/30 transition-colors"
                         >
@@ -46,6 +52,7 @@ export default function SearchHistoryDropdown({
                             <span className="truncate text-foreground">{q}</span>
                         </button>
                         <button
+                            type="button"
                             onClick={e => { e.stopPropagation(); onRemove(q); }}
                             className="pr-3 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-all"
                             title="Remove"
@@ -56,5 +63,8 @@ export default function SearchHistoryDropdown({
                 ))}
             </ul>
         </div>
+        
+       
     );
+     
 }

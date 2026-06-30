@@ -908,18 +908,33 @@ useEffect(() => {
                     </svg>
                 </div>
                 
-                <Input
-                    type="search"
-                    placeholder={artistTracksView ? `Viewing ${artistTracksView.artistName}…` : "Search tracks, artists or albums…"}
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    // Gestion du focus
-                    onFocus={() => setIsDropdownVisible(true)}
-                    // Gestion du blur avec délai (200ms) pour capter le clic sur l'historique avant sa fermeture
-                    onBlur={() => setTimeout(() => setIsDropdownVisible(false), 200)}
-                    disabled={isSearching}
-                    className="pl-11 pr-4 h-12 bg-card border-border/50 focus:border-primary/50 transition-colors text-sm placeholder:text-muted-foreground/50 rounded-xl shadow-sm"
-                />
+          <Input
+    type="search"
+    placeholder={artistTracksView ? `Viewing ${artistTracksView.artistName}…` : "Search tracks, artists or albums…"}
+    value={searchQuery}
+    onChange={e => setSearchQuery(e.target.value)}
+    
+    // 1. Ouvrir le dropdown au focus
+    onFocus={() => setIsDropdownVisible(true)}
+    
+    // 2. Le onBlur ne doit s'exécuter QUE si on ne clique pas sur Entrée
+    onBlur={(e) => {
+        // On laisse le temps au clic de la souris de s'exécuter
+        setTimeout(() => setIsDropdownVisible(false), 200);
+    }}
+
+    // 3. CAPTURE DE LA TOUCHE ENTRÉE
+    onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+            // On force la soumission immédiate sans attendre le floutage de l'input
+            e.preventDefault(); 
+            handleSearch(); 
+            setIsDropdownVisible(false); // On ferme proprement après
+        }
+    }}
+    disabled={isSearching}
+    className="pl-11 pr-4 h-12 bg-card border-border/50 focus:border-primary/50 transition-colors text-sm placeholder:text-muted-foreground/50 rounded-xl shadow-sm"
+/>
 
                 {/* Insertion du Dropdown réutilisable configuré pour Spotify */}
                 <SearchHistoryDropdown

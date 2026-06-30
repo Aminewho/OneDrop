@@ -6,6 +6,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "react-hot-toast";
 import AlertModal from "@/components/AlertModal";
 import { Search, Link2, X } from "lucide-react";
+import SearchHistoryDropdown from "@/components/SearchHistoryDropdown";
+import { useSearchHistory } from "@/hooks/useSearchHistory";
 
 const API_BASE_URL = "http://localhost:8081";
 const LS_SEARCH_QUERY_KEY  = "videoSearchQuery_page";
@@ -82,7 +84,9 @@ export default function Videos() {
   const [error,        setError]        = useState<string | null>(null);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [inputMode,    setInputMode]    = useState<"search" | "url">("search");
+  const [isDropdownVisible, setIsDropdownVisible] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const { history, push, remove, clear } = useSearchHistory("youtube");
 
   const hasResults = videos.length > 0;
 
@@ -132,15 +136,25 @@ export default function Videos() {
     } finally { setIsLoading(false); }
   }, [setVideos]);
 
+  const performSearch = useCallback((value: string) => {
+    const term = value.trim();
+    if (!term) return;
+
+    setIsDropdownVisible(false);
+    push(term);
+
+    const id = extractYoutubeId(term);
+    if (id) fetchByUrl(id); else fetchByQuery(term);
+  }, [fetchByQuery, fetchByUrl, push]);
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    const id = extractYoutubeId(searchQuery);
-    if (id) fetchByUrl(id); else fetchByQuery(searchQuery);
+    performSearch(searchQuery);
   };
 
   const clearSearch = () => {
     setSearchQuery(""); setVideos([]); setError(null);
-    setInputMode("search"); inputRef.current?.focus();
+    setInputMode("search"); setIsDropdownVisible(false); inputRef.current?.focus();
   };
 
   const handleProcessVideo = useCallback(async (videoId: string) => {
@@ -217,10 +231,29 @@ export default function Videos() {
             ref={inputRef}
             value={searchQuery}
             onChange={e => handleInputChange(e.target.value)}
+            onFocus={() => setIsDropdownVisible(true)}
+            onBlur={() => setTimeout(() => setIsDropdownVisible(false), 180)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                performSearch(searchQuery);
+              }
+            }}
             placeholder="Search artists, songs… or paste a YouTube URL"
             className="pl-11 pr-10 h-12 bg-card border-border/50 focus:border-primary/50 transition-colors text-sm placeholder:text-muted-foreground/50 rounded-xl shadow-sm"
             data-testid="input-search"
             autoComplete="off"
+          />
+
+          <SearchHistoryDropdown
+            history={history}
+            visible={isDropdownVisible}
+            onRemove={remove}
+            onClear={clear}
+            onSelect={(query) => {
+              setSearchQuery(query);
+              performSearch(query);
+            }}
           />
 
           {/* URL badge */}

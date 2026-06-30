@@ -29,35 +29,53 @@ export function useSearchHistory(source: "youtube" | "spotify") {
     };
 
     // Hydrate from backend on mount
-    useEffect(() => {
-        fetch(`${API_BASE_URL}/api/history/${source}`)
-            .then(r => r.ok ? r.json() : null)
-            .then((data: string[] | null) => {
-                if (data && data.length > 0) {
-                    setHistory(data);
-                    saveCache(data);
-                }
-            })
-            .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [source]);
+   // useSearchHistory.ts — replace the useEffect with this:
 
-    const push = useCallback((query: string) => {
-        const q = query.trim();
-        if (!q) return;
-        setHistory(prev => {
-            const next = [q, ...prev.filter(h => h.toLowerCase() !== q.toLowerCase())]
-                .slice(0, MAX_HISTORY);
-            saveCache(next);
-            return next;
-        });
-        fetch(`${API_BASE_URL}/api/history/${source}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ query: q }),
-        }).catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [source]);
+useEffect(() => {
+    const cached = loadCache();
+
+    // If we already have local data, use it — don't overwrite with backend response.
+    // This prevents the race condition where a slow backend response wipes
+    // a freshly-pushed entry from the local state.
+    if (cached.length > 0) {
+        setHistory(cached);
+        return;
+    }
+
+    // Only hit the backend when localStorage is truly empty
+    // (new browser, new Electron window, cleared storage).
+    fetch(`${API_BASE_URL}/api/history/${source}`)
+        .then(r => r.ok ? r.json() : null)
+        .then((data: string[] | null) => {
+            if (data && data.length > 0) {
+                setHistory(data);
+                saveCache(data);
+            }
+        })
+        .catch(() => {});
+// eslint-disable-next-line react-hooks/exhaustive-deps
+}, [source]);
+
+  const push = useCallback((query: string) => {
+    const q = query.trim();
+    if (!q) return; // Sécurité : si la requête est vide, on stoppe tout immédiatement !
+    
+    setHistory(prev => {
+        // Sécurité supplémentaire : si prev n'est pas un tableau, on repart sur un tableau vide
+        const currentHistory = Array.isArray(prev) ? prev : [];
+        
+        const next = [q, ...currentHistory.filter(h => h.toLowerCase() !== q.toLowerCase())]
+            .slice(0, MAX_HISTORY);
+        saveCache(next);
+        return next;
+    });
+
+    fetch(`${API_BASE_URL}/api/history/${source}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: q }),
+    }).catch(() => {});
+}, [source]);
 
     const remove = useCallback((query: string) => {
         setHistory(prev => {
