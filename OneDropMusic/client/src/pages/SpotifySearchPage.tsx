@@ -27,7 +27,8 @@ interface SearchItem {
     image_url: string;
     external_url: string;
     artists: { id: string; name: string }[]; 
-    uri: string; 
+    uri: string;
+    durationMs?: number;
 }
 
 interface AlbumData {
@@ -72,6 +73,20 @@ const formatDuration = (ms: number): string => {
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+};
+
+const formatDurationIso = (ms: number): string => {
+    const totalSeconds = Math.floor(ms / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    let duration = 'PT';
+    if (hours > 0) duration += `${hours}H`;
+    if (minutes > 0 || hours > 0) duration += `${minutes}M`;
+    if (seconds > 0 || (!hours && !minutes)) duration += `${seconds}S`;
+
+    return duration;
 };
 
 // --- Sub-Components ---
@@ -248,8 +263,34 @@ console.log("YouTube Search URL:", query);
         }
     };
 
+    // --- 2. Get YouTube Video Duration ---
+    const getYouTubeVideoDuration = async (videoId: string): Promise<number | null> => {
+        if (!YOUTUBE_API_KEY) return null;
 
-    // --- 3. Handle Process Click (Trigger Youtube Search) ---
+        try {
+            const url = `https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=${videoId}&key=${YOUTUBE_API_KEY}`;
+            const response = await fetch(url);
+            const data = await response.json();
+
+            if (data.items && data.items.length > 0) {
+                const iso8601Duration = data.items[0].contentDetails.duration; // e.g., "PT4M32S"
+                // Convert ISO 8601 to milliseconds
+                const match = iso8601Duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+                if (match) {
+                    const hours = parseInt(match[1] || '0');
+                    const minutes = parseInt(match[2] || '0');
+                    const seconds = parseInt(match[3] || '0');
+                    const totalMs = (hours * 3600 + minutes * 60 + seconds) * 1000;
+                    return totalMs;
+                }
+            }
+            return null;
+        } catch (error) {
+            console.error("YouTube Duration fetch error:", error);
+            return null;
+        }
+    };
+
     const handleProcessTrack = async (trackItem: SearchItem) => {
         // Scroll to top to see the player
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -264,6 +305,14 @@ console.log("YouTube Search URL:", query);
         const videoId = await findYouTubeVideo(trackItem);
         
         if (videoId) {
+            // Fetch the real YouTube video duration
+            const youtubeDurationMs = await getYouTubeVideoDuration(videoId);
+            
+            // Update the track item with YouTube duration (if available)
+            if (youtubeDurationMs !== null) {
+                trackItem.durationMs = youtubeDurationMs;
+            }
+
             setActiveProcessingTrack({
                 spotifyTrack: trackItem,
                 youtubeId: videoId,
@@ -287,7 +336,6 @@ console.log("YouTube Search URL:", query);
     setTaskStatuses(prev => ({ ...prev, [videoId]: 'PENDING' }));
 
     const toastId = toast.loading("Launching Spleeter...");
-
     try {
         const response = await fetch(`${BACKEND_BASE_URL}/api/audio/process`, {
             method: 'POST',
@@ -295,7 +343,7 @@ console.log("YouTube Search URL:", query);
             body: JSON.stringify({
                 videoId: videoId,
                 videoTitle: activeProcessingTrack.spotifyTrack.name,
-                duration: "0"
+                duration: formatDurationIso(activeProcessingTrack.spotifyTrack.durationMs ?? 0)
             })
         });
 
@@ -402,6 +450,7 @@ console.log("YouTube Search URL:", query);
                     external_url: item.external_urls.spotify,
                     artists: item.artists.map((a: any) => ({ id: a.id, name: a.name })),
                     uri: item.uri,
+                    durationMs: item.duration_ms,
                 };
             case 'artist':
                 return {
@@ -563,7 +612,7 @@ useEffect(() => {
         <AlertModal
             message={alertMessage}
             onClose={() => setAlertMessage(null)}
-            title="Already Processed"
+            title="Already Downloaded"
             variant="warning"
         />
 
@@ -873,7 +922,7 @@ useEffect(() => {
                                 <tbody>
                                     {selectedAlbum.tracks.map((track) => (
                                         <tr key={track.id}
-                                            onClick={() => handleProcessTrack({ id: track.id, type: 'track', name: track.name, image_url: selectedAlbum.details.image, artists: track.artists.map((a: any) => ({ id: a.id || '0', name: a.name })), description: '', external_url: track.spotifyUrl, uri: '' } as SearchItem)}
+                                            onClick={() => handleProcessTrack({ id: track.id, type: 'track', name: track.name, image_url: selectedAlbum.details.image, artists: track.artists.map((a: any) => ({ id: a.id || '0', name: a.name })), description: '', external_url: track.spotifyUrl, uri: '', durationMs: track.durationMs } as SearchItem)}
                                             className="hover:bg-accent/50 group transition-colors cursor-pointer">
                                             <td className="p-2 text-muted-foreground">{track.trackNumber}</td>
                                             <td className="p-2 font-medium">
@@ -883,7 +932,7 @@ useEffect(() => {
                                             <td className="p-2 text-right text-muted-foreground font-mono">{formatDuration(track.durationMs)}</td>
                                             <td className="p-2 text-right">
                                                 <CustomPlayButton className="h-8 w-8 opacity-0 group-hover:opacity-100"
-                                                    onClick={() => handleProcessTrack({ id: track.id, type: 'track', name: track.name, image_url: selectedAlbum.details.image, artists: track.artists.map((a: any) => ({ id: a.id || '0', name: a.name })), description: '', external_url: track.spotifyUrl, uri: '' } as SearchItem)} />
+                                                    onClick={() => handleProcessTrack({ id: track.id, type: 'track', name: track.name, image_url: selectedAlbum.details.image, artists: track.artists.map((a: any) => ({ id: a.id || '0', name: a.name })), description: '', external_url: track.spotifyUrl, uri: '', durationMs: track.durationMs } as SearchItem)} />
                                             </td>
                                         </tr>
                                     ))}

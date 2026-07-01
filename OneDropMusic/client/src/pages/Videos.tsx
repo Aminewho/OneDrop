@@ -290,7 +290,7 @@ export default function Videos() {
   if (!hasResults && !isLoading) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
-        <AlertModal message={alertMessage} onClose={() => setAlertMessage(null)} title="Already Processed" variant="warning" />
+        <AlertModal message={alertMessage} onClose={() => setAlertMessage(null)} title="Already Downloaded" variant="warning" />
 
         {/* Centered hero */}
         <div className="flex-1 flex flex-col items-center justify-center px-6 pb-24">
@@ -351,7 +351,7 @@ export default function Videos() {
   // ── RESULTS STATE ──────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-background">
-      <AlertModal message={alertMessage} onClose={() => setAlertMessage(null)} title="Already Processed" variant="warning" />
+      <AlertModal message={alertMessage} onClose={() => setAlertMessage(null)} title="Already Downloaded" variant="warning" />
 
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
 

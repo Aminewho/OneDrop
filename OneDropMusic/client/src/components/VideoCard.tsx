@@ -202,7 +202,7 @@ hover:bg-primary/90 text-primary-foreground transition-transform duration-200 tr
 
                 <div className="flex items-center justify-between text-[11px] text-muted-foreground/80 uppercase tracking-wider font-medium">
                     <span>{video.uploadedAt}</span>
-                    {isCompleted && <span className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-1.5 rounded">Processed</span>}
+                    {isCompleted && <span className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-1.5 rounded">Downloaded</span>}
                 </div>
             </div>
         </div>

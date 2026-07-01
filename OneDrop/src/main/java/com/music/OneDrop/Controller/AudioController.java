@@ -1,21 +1,5 @@
 package com.music.OneDrop.Controller;
 
-import com.music.OneDrop.Dto.ProcessRequestDTO;
-import com.music.OneDrop.Service.AudioProcessorService;
-import com.music.OneDrop.Service.TaskStatusManager;
-import com.music.OneDrop.Service.TaskStatusManager.Status;
-import com.music.OneDrop.Service.VideoDeletionService;
-import com.music.OneDrop.model.VideoEntry;
-import com.music.OneDrop.repository.VideoRepository;
-
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.UrlResource;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.nio.file.Files;
@@ -25,9 +9,80 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.music.OneDrop.Dto.ProcessRequestDTO;
+import com.music.OneDrop.Service.AudioProcessorService;
+import com.music.OneDrop.Service.TaskStatusManager;
+import com.music.OneDrop.Service.TaskStatusManager.Status;
+import com.music.OneDrop.Service.VideoDeletionService;
+import com.music.OneDrop.model.VideoEntry;
+import com.music.OneDrop.repository.VideoRepository;
+
 @RestController
 @RequestMapping("/api/audio")
 public class AudioController {
+
+    /*
+     * =========================================================
+     * UTILITY: Convert ISO 8601 duration to mm:ss format
+     * =========================================================
+     */
+    private static String convertIso8601DurationToSeconds(String iso8601Duration) {
+        if (iso8601Duration == null || iso8601Duration.isEmpty()) {
+            return "0:00";
+        }
+        
+        // PT7M4S -> mm:ss format
+        try {
+            if (!iso8601Duration.startsWith("PT")) {
+                // Already in format, return as-is
+                return iso8601Duration;
+            }
+            
+            String timeStr = iso8601Duration.substring(2); // Remove "PT"
+            long totalSeconds = 0;
+            
+            // Parse: 1H 2M 3S
+            if (timeStr.contains("H")) {
+                int hIndex = timeStr.indexOf("H");
+                totalSeconds += Long.parseLong(timeStr.substring(0, hIndex)) * 3600;
+                timeStr = timeStr.substring(hIndex + 1);
+            }
+            
+            if (timeStr.contains("M")) {
+                int mIndex = timeStr.indexOf("M");
+                totalSeconds += Long.parseLong(timeStr.substring(0, mIndex)) * 60;
+                timeStr = timeStr.substring(mIndex + 1);
+            }
+            
+            if (timeStr.contains("S")) {
+                int sIndex = timeStr.indexOf("S");
+                totalSeconds += Long.parseLong(timeStr.substring(0, sIndex));
+            }
+            
+            // Convert to mm:ss format
+            long minutes = totalSeconds / 60;
+            long seconds = totalSeconds % 60;
+            return String.format("%d:%02d", minutes, seconds);
+        } catch (Exception e) {
+            // If parsing fails, return as-is
+            return iso8601Duration;
+        }
+    }
 
     /*
      * =========================================================
@@ -117,7 +172,7 @@ public ResponseEntity<String> processAudio(@RequestBody ProcessRequestDTO reques
     Optional<VideoEntry> existingEntry = videoRepository.findById(videoId);
     if (existingEntry.isPresent() && Status.COMPLETED.name().equals(existingEntry.get().getStatus())) {
         return new ResponseEntity<>(
-            "Video \"" + existingEntry.get().getVideoTitle() + "\" has already been processed.",
+            "Video \"" + existingEntry.get().getVideoTitle() + "\" has already been downloaded.",
             HttpStatus.CONFLICT   // 409 — clearly distinct from 202 (in-progress) and 400 (bad request)
         );
     }
@@ -140,19 +195,22 @@ public ResponseEntity<String> processAudio(@RequestBody ProcessRequestDTO reques
             /*
              * UPDATE EXISTING ENTRY (was FAILED — allow reprocessing)
              */
+            System.out.println("Updating existing entry for duration: " + requestDTO.getDuration());
             entryToSave = existingEntry.get();
             entryToSave.setStatus(Status.PENDING.name());
             entryToSave.setVideoTitle(requestDTO.getVideoTitle());
-            entryToSave.setDuration(requestDTO.getDuration());
+            entryToSave.setDuration(convertIso8601DurationToSeconds(requestDTO.getDuration()));
             entryToSave.setProcessedAt(null);
         } else {
             /*
              * CREATE NEW ENTRY
              */
+                        System.out.println("Updating existing entry for duration: " + requestDTO.getDuration());
+
             entryToSave = new VideoEntry();
             entryToSave.setVideoId(videoId);
             entryToSave.setVideoTitle(requestDTO.getVideoTitle());
-            entryToSave.setDuration(requestDTO.getDuration());
+            entryToSave.setDuration(convertIso8601DurationToSeconds(requestDTO.getDuration()));
             entryToSave.setStatus(Status.PENDING.name());
             entryToSave.setProcessedAt(null);
         }
