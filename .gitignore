@@ -35,3 +35,9 @@ spleeter_db.mv.db
 spleeter_db.lock.db
 # npm / pnpm lock if desired
 # package-lock.jsonOneDrop/tools/spleeter.exe
+
+# Desktop builder artifacts and large tools
+OneDropDesktop/app/tools
+OneDropDesktop/dist
+OneDropDesktop/node_modules
+OneDropDesktop/app

@@ -1,0 +1,53 @@
+{
+  "name": "onedropdesktop",
+  "version": "1.0.0",
+  "description": "OneDrop Desktop",
+  "author": "Amine",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^43.0.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.onedrop.desktop",
+    "productName": "OneDrop",
+
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+
+    "files": [
+      "electron/**/*",
+      "package.json"
+    ],
+
+    "extraResources": [
+      {
+        "from": "app",
+        "to": "app"
+      }
+    ],
+
+    "asar": true,
+
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "OneDrop",
+      "artifactName": "OneDropSetup-${version}.exe",
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}
