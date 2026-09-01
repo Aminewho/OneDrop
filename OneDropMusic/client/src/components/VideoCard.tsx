@@ -1,8 +1,15 @@
 import React, { useState, useMemo } from 'react';
-import { Video } from "@shared/schema";
 import { Clock, Eye, Scissors, X } from "lucide-react"; 
 
 type TaskStatus = 'PENDING' | 'DOWNLOADING' | 'SEPARATING' | 'FAILED' | 'COMPLETED' | 'UNKNOWN' | undefined;
+
+export interface Video {
+    id: string;
+    title: string;
+    thumbnail: string;
+    channel: string;
+    views?: string;
+}
 
 interface VideoCardProps {
     video: Video;
@@ -11,39 +18,14 @@ interface VideoCardProps {
     taskStatus: TaskStatus; 
 }
 
-function formatDuration(isoDuration: string | null | undefined): string {
-    if (!isoDuration || typeof isoDuration !== 'string') return 'N/A';
-    
-    const regex = /PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/;
-    const matches = isoDuration.match(regex);
-    if (!matches) return 'N/A';
-
-    const hours = parseInt(matches[1] || '0', 10);
-    const minutes = parseInt(matches[2] || '0', 10);
-    const seconds = parseInt(matches[3] || '0', 10);
-
-    const parts: string[] = [];
-    if (hours > 0) {
-        parts.push(hours.toString());
-        parts.push(minutes.toString().padStart(2, '0'));
-    } else {
-        parts.push(minutes.toString());
-    }
-    parts.push(seconds.toString().padStart(2, '0'));
-
-    return parts.join(':');
-}
-
 export default function VideoCard({ video, onView, onProcess, taskStatus }: VideoCardProps) {
-    const formattedDuration = useMemo(() => formatDuration(video.duration), [video.duration]);
     const [isPlayerVisible, setIsPlayerVisible] = useState(false);
 
     const isProcessing = taskStatus === 'DOWNLOADING' || taskStatus === 'SEPARATING' || taskStatus === 'PENDING';
     const isCompleted = taskStatus === 'COMPLETED';
     const isFailed = taskStatus === 'FAILED';
 
-    // 🛠️ CONSTRUCTION SÉCURISÉE DE L'URL EMBED
-    // L'ajout de 'origin' est crucial pour éviter les blocages sur 127.0.0.1
+    // 🛠️ Embed URL Construction
     const embedUrl = useMemo(() => {
         const origin = typeof window !== 'undefined' ? window.location.origin : '';
         const params = new URLSearchParams({
@@ -88,7 +70,7 @@ export default function VideoCard({ video, onView, onProcess, taskStatus }: Vide
                 border
                 border-border
                 shadow-sm
-                ">
+            ">
                 
                 {isPlayerVisible ? (
                     <div className="relative w-full h-full animate-in fade-in duration-300">
@@ -98,10 +80,9 @@ export default function VideoCard({ video, onView, onProcess, taskStatus }: Vide
                             title={video.title}
                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                             allowFullScreen
-                            // Le sandbox permet de limiter les risques de sécurité tout en laissant l'iframe fonctionner
                             sandbox="allow-forms allow-scripts allow-pointer-lock allow-same-origin allow-presentation"
                         />
-                        {/* Bouton pour fermer le lecteur et revenir à la vignette */}
+                        {/* Close player button */}
                         <button 
                             onClick={(e) => { e.stopPropagation(); setIsPlayerVisible(false); }}
                             className="absolute top-2 left-2 p-1.5 bg-black/60 hover:bg-black/90 text-white rounded-full transition-colors z-20"
@@ -117,33 +98,12 @@ export default function VideoCard({ video, onView, onProcess, taskStatus }: Vide
                             alt={video.title}
                             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                         />
-                        
-                                        <div
-                                        className="
-                                        absolute
-                                        bottom-2
-                                        right-2
-                                        px-2
-                                        py-1
-                                        rounded-md
-                                        bg-card/90
-                                        backdrop-blur
-                                        border
-                                        border-border
-                                        text-xs
-                                        font-medium
-                                        text-foreground
-                                        "
-                                        >            
-                                                    {formattedDuration} 
-                                        </div>
 
-                        {/* Overlay au survol */}
+                        {/* Hover Overlay */}
                         <div className="absolute inset-0 bg-background/70 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                             <button
                                 onClick={handleViewClick}
-                                className="p-4 rounded-full bg-primary
-hover:bg-primary/90 text-primary-foreground transition-transform duration-200 transform hover:scale-110 shadow-xl"
+                                className="p-4 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground transition-transform duration-200 transform hover:scale-110 shadow-xl"
                             >
                                 <Eye className="h-6 w-6" />
                             </button>
@@ -151,7 +111,7 @@ hover:bg-primary/90 text-primary-foreground transition-transform duration-200 tr
                     </>
                 )}
                 
-                {/* Bouton de traitement (Spleeter) */}
+                {/* Spleeter processing button */}
                 <button
                     onClick={handleProcessClick}
                     disabled={isProcessing && !isFailed}
@@ -174,13 +134,19 @@ hover:bg-primary/90 text-primary-foreground transition-transform duration-200 tr
                 </button>
             </div>
             
-            <div className="space-y-1.5 px-1">
+            <div className="space-y-1.5 px-1 pt-2">
                 <h3 className="font-semibold text-sm line-clamp-2 text-foreground leading-snug group-hover:text-primary transition-colors">
                     {video.title}
                 </h3>
-                
-                {/* Affichage des états de traitement */}
-                <div className="min-h-[1.25rem]">
+
+                <p className="text-xs text-muted-foreground truncate">
+                    {video.channel}
+                </p>
+
+                {/* Displaying view count and processing status */}
+                <div className="flex items-center justify-between text-xs text-muted-foreground/80 font-medium">
+                    <span>{video.views || ''}</span>
+
                     {isProcessing && (
                         <div className="flex items-center gap-1.5 text-yellow-600 dark:text-yellow-500 text-xs font-bold">
                             <span className="relative flex h-2 w-2">
@@ -190,19 +156,8 @@ hover:bg-primary/90 text-primary-foreground transition-transform duration-200 tr
                             {taskStatus}...
                         </div>
                     )}
-                    {isCompleted && <p className="text-green-600 dark:text-green-500 text-xs font-bold">✓ Ready to use</p>}
-                    {isFailed && <p className="text-red-500 text-xs font-bold">× Failed (Click icon to retry)</p>}
-                    
-                    {!isProcessing && !isCompleted && !isFailed && (
-                        <p className="text-xs text-muted-foreground truncate">
-                            {video.channel}
-                        </p>
-                    )}
-                </div>
-
-                <div className="flex items-center justify-between text-[11px] text-muted-foreground/80 uppercase tracking-wider font-medium">
-                    <span>{video.uploadedAt}</span>
-                    {isCompleted && <span className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-1.5 rounded">Downloaded</span>}
+                    {isCompleted && <span className="text-green-600 dark:text-green-500 text-xs font-bold">✓ Ready</span>}
+                    {isFailed && <span className="text-red-500 text-xs font-bold">× Failed</span>}
                 </div>
             </div>
         </div>

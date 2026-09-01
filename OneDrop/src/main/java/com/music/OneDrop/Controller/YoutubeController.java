@@ -21,9 +21,10 @@ public class YoutubeController {
 
     @GetMapping("/search/youtube")
     public ResponseEntity<List<VideoDto>> search(@RequestParam String q) {
+        System.out.println("Incoming YouTube search request: q=" + q);
         try {
             // Appeler la nouvelle méthode qui gère les deux requêtes API
-            List<VideoDto> videos = youtubeService.searchVideosWithDetails(q, 5L);
+            List<VideoDto> videos = youtubeService.searchVideosWithDetails(q, 10L);
             return ResponseEntity.ok(videos);
         } catch (Exception e) {
             e.printStackTrace();

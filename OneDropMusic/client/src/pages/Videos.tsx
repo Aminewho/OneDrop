@@ -20,12 +20,19 @@ export type TaskStatus =
   | undefined;
 
 interface YoutubeApiResponse {
-  videoId: string; title: string; channelTitle: string;
-  thumbnailUrl: string; publishedAt: string; duration: string;
+  videoId: string;
+  title: string;
+  channelTitle: string;
+  thumbnailUrl: string;
+views?: string; // Matches Java VideoDto "views" property
 }
-interface Video {
-  id: string; title: string; thumbnail: string;
-  duration: string; channel: string; uploadedAt: string;
+
+export interface Video {
+  id: string;
+  title: string;
+  thumbnail: string;
+  channel: string;
+  views: string;
 }
 
 function useLocalStorageState<T>(key: string, def: T): [T, React.Dispatch<React.SetStateAction<T>>] {
@@ -38,17 +45,9 @@ function useLocalStorageState<T>(key: string, def: T): [T, React.Dispatch<React.
   useEffect(() => { try { localStorage.setItem(key, JSON.stringify(state)); } catch {} }, [key, state]);
   return [state, setState];
 }
-
-function formatDuration(iso: string | null | undefined): string {
-  if (!iso) return "N/A";
-  const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-  if (!m) return "N/A";
-  const h = parseInt(m[1] || "0"), min = parseInt(m[2] || "0"), s = parseInt(m[3] || "0");
-  const p: string[] = [];
-  if (h > 0) { p.push(String(h)); p.push(String(min).padStart(2, "0")); }
-  else p.push(String(min));
-  p.push(String(s).padStart(2, "0"));
-  return p.join(":");
+function formatViewCount(views?: string | null): string {
+  if (!views || views.trim() === "") return "N/A";
+  return views;
 }
 
 function extractYoutubeId(input: string): string | null {
@@ -63,17 +62,6 @@ function extractYoutubeId(input: string): string | null {
     if (match) return match[1];
   }
   return null;
-}
-
-// YouTube wordmark SVG (red pill + white play, no hardcoded text color)
-function YoutubeLogo({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 90 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect width="28" height="20" rx="5" fill="hsl(var(--primary))"/>
-      <polygon points="11,6 11,14 20,10" fill="white"/>
-      <text x="33" y="15" fontFamily="Arial,sans-serif" fontWeight="700" fontSize="14" fill="currentColor">YouTube</text>
-    </svg>
-  );
 }
 
 export default function Videos() {
@@ -105,9 +93,11 @@ export default function Videos() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: YoutubeApiResponse[] = await res.json();
       setVideos(data.map(v => ({
-        id: v.videoId, title: v.title, thumbnail: v.thumbnailUrl,
-        duration: formatDuration(v.duration), channel: v.channelTitle,
-        uploadedAt: new Date(v.publishedAt).toLocaleDateString(),
+        id: v.videoId,
+        title: v.title,
+        thumbnail: v.thumbnailUrl,
+        channel: v.channelTitle,
+        views: formatViewCount(v.views),
       })));
     } catch (e) {
       setError(`Search failed: ${e instanceof Error ? e.message : "Unknown error"}`);
@@ -122,17 +112,31 @@ export default function Videos() {
         const data: YoutubeApiResponse[] = await res.json();
         const match = data.find(v => v.videoId === videoId);
         if (match) {
-          setVideos([{ id: match.videoId, title: match.title, thumbnail: match.thumbnailUrl,
-            duration: formatDuration(match.duration), channel: match.channelTitle,
-            uploadedAt: new Date(match.publishedAt).toLocaleDateString() }]);
+          setVideos([{
+            id: match.videoId,
+            title: match.title,
+            thumbnail: match.thumbnailUrl,
+            channel: match.channelTitle,
+            views: formatViewCount(match.views),
+          }]);
           return;
         }
       }
-      setVideos([{ id: videoId, title: "YouTube Video", channel: "YouTube",
-        thumbnail: `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`, duration: "--:--", uploadedAt: "" }]);
+      setVideos([{
+        id: videoId,
+        title: "YouTube Video",
+        channel: "YouTube",
+        thumbnail: `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
+        views: "N/A",
+      }]);
     } catch {
-      setVideos([{ id: videoId, title: "YouTube Video", channel: "YouTube",
-        thumbnail: `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`, duration: "--:--", uploadedAt: "" }]);
+      setVideos([{
+        id: videoId,
+        title: "YouTube Video",
+        channel: "YouTube",
+        thumbnail: `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
+        views: "N/A",
+      }]);
     } finally { setIsLoading(false); }
   }, [setVideos]);
 
@@ -165,8 +169,9 @@ export default function Videos() {
     try {
       const video = videos.find(v => v.id === videoId);
       const res = await fetch(`${API_BASE_URL}/api/audio/process`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ videoId, duration: video?.duration, videoTitle: video?.title }),
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ videoId, videoTitle: video?.title }),
       });
       if (res.status === 409) {
         const msg = await res.text();
@@ -209,22 +214,19 @@ export default function Videos() {
 
   const isUrlMode = inputMode === "url";
 
-  // ── Shared search bar ─────────────────────────────────────────────────────
   const SearchBar = (
     <form onSubmit={handleSearch} className="w-full">
       <div className="flex gap-3 items-center">
         <div className="relative flex-1">
-          {/* YouTube logo pill */}
           <div className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none">
-            {isUrlMode
-              ? <Link2 className="w-4 h-4 text-primary" />
-              : (
-                <svg viewBox="0 0 20 14" className="w-5 h-3.5">
-                  <rect width="20" height="14" rx="3.5" fill="hsl(var(--primary))"/>
-                  <polygon points="8,3.5 8,10.5 14.5,7" fill="white"/>
-                </svg>
-              )
-            }
+            {isUrlMode ? (
+              <Link2 className="w-4 h-4 text-primary" />
+            ) : (
+              <svg viewBox="0 0 20 14" className="w-5 h-3.5">
+                <rect width="20" height="14" rx="3.5" fill="hsl(var(--primary))"/>
+                <polygon points="8,3.5 8,10.5 14.5,7" fill="white"/>
+              </svg>
+            )}
           </div>
 
           <Input
@@ -256,7 +258,6 @@ export default function Videos() {
             }}
           />
 
-          {/* URL badge */}
           {isUrlMode && (
             <div className="absolute right-10 top-1/2 -translate-y-1/2 flex items-center gap-1 px-1.5 py-0.5 rounded bg-primary/10 border border-primary/20">
               <span className="text-[9px] font-bold text-primary tracking-wider uppercase">URL</span>
@@ -286,17 +287,12 @@ export default function Videos() {
     </form>
   );
 
-  // ── HERO STATE (no results) ────────────────────────────────────────────────
   if (!hasResults && !isLoading) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
         <AlertModal message={alertMessage} onClose={() => setAlertMessage(null)} title="Already Downloaded" variant="warning" />
-
-        {/* Centered hero */}
         <div className="flex-1 flex flex-col items-center justify-center px-6 pb-24">
           <div className="w-full max-w-2xl space-y-10 text-center">
-
-            {/* Hero text */}
             <div className="space-y-4">
               <div className="flex items-center justify-center gap-2.5 mb-2">
                 <svg viewBox="0 0 24 17" className="w-8 h-[22px]">
@@ -307,7 +303,6 @@ export default function Videos() {
                   YouTube Search
                 </span>
               </div>
-
               <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-foreground leading-tight">
                 Every song.<br />
                 <span style={{ color: "hsl(var(--primary))" }}>Every layer.</span>
@@ -317,17 +312,14 @@ export default function Videos() {
               </p>
             </div>
 
-            {/* Search bar */}
             {SearchBar}
 
-            {/* Error */}
             {error && (
               <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-destructive/8 border border-destructive/20 text-sm text-destructive text-left">
                 <X className="w-4 h-4 shrink-0" />{error}
               </div>
             )}
 
-            {/* Quick suggestions */}
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground/60 uppercase tracking-widest">Popular searches</p>
               <div className="flex flex-wrap justify-center gap-2">
@@ -348,24 +340,18 @@ export default function Videos() {
     );
   }
 
-  // ── RESULTS STATE ──────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-background">
       <AlertModal message={alertMessage} onClose={() => setAlertMessage(null)} title="Already Downloaded" variant="warning" />
-
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
-
-        {/* Compact search bar at top */}
         <div className="max-w-2xl">{SearchBar}</div>
 
-        {/* Error */}
         {error && (
           <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-destructive/8 border border-destructive/20 text-sm text-destructive">
             <X className="w-4 h-4 shrink-0" />{error}
           </div>
         )}
 
-        {/* Result count */}
         {!isLoading && videos.length > 0 && (
           <p className="text-xs text-muted-foreground">
             {videos.length} result{videos.length !== 1 ? "s" : ""}
@@ -373,7 +359,6 @@ export default function Videos() {
           </p>
         )}
 
-        {/* Grid */}
         {isLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {Array.from({ length: isUrlMode ? 1 : 8 }).map((_, i) => (
