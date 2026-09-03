@@ -99,14 +99,17 @@ public class AudioProcessorService {
      * PATHS
      * =========================================================
      */
-    private static final Path   TOOLS_DIR            = APP_INSTALL_DIR.resolve("tools");
-    private static final Path   MODELS_DIR           = APP_INSTALL_DIR.resolve("pretrained_models");
-    private static final Path   TEMP_DOWNLOAD_DIR    = USER_DATA_DIR.resolve("temp");
-    private static final Path   PERMANENT_TRACKS_DIR = USER_DATA_DIR.resolve("tracks");
-    private static final Path   DATABASE_DIR         = USER_DATA_DIR.resolve("database");
+    public static final Path TOOLS_DIR            = APP_INSTALL_DIR.resolve("tools");
+    private static final Path MODELS_DIR           = APP_INSTALL_DIR.resolve("pretrained_models");
+    private static final Path TEMP_DOWNLOAD_DIR    = USER_DATA_DIR.resolve("temp");
+    private static final Path PERMANENT_TRACKS_DIR = USER_DATA_DIR.resolve("tracks");
+    private static final Path DATABASE_DIR         = USER_DATA_DIR.resolve("database");
 
     private static final String SPLEETER_EXEC_PATH =
         TOOLS_DIR.resolve("spleeter.exe").toAbsolutePath().toString();
+
+    public static final String YT_HELPER_EXEC_PATH =
+        TOOLS_DIR.resolve("yt-helper.exe").toAbsolutePath().toString();
 
     private static final String YT_HELPER_URL = "http://127.0.0.1:8082";
 
@@ -132,12 +135,14 @@ public class AudioProcessorService {
             System.out.println("TEMP_DOWNLOAD_DIR    : " + TEMP_DOWNLOAD_DIR);
             System.out.println("PERMANENT_TRACKS_DIR : " + PERMANENT_TRACKS_DIR);
             System.out.println("SPLEETER_EXEC_PATH   : " + SPLEETER_EXEC_PATH);
+            System.out.println("YT_HELPER_EXEC_PATH  : " + YT_HELPER_EXEC_PATH);
             System.out.println("YT_HELPER_URL        : " + YT_HELPER_URL);
             System.out.println("========================================");
 
             validatePathExists(TOOLS_DIR,  "tools directory");
             validatePathExists(MODELS_DIR, "pretrained_models directory");
             validateExecutable(SPLEETER_EXEC_PATH, "spleeter.exe");
+            validateExecutable(YT_HELPER_EXEC_PATH, "yt-helper.exe");
 
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize application directories", e);
@@ -249,11 +254,8 @@ public class AudioProcessorService {
     @Async
     public void startAudioProcessing(String videoId) {
         try {
-            // 1. Process audio and return duration in seconds
-            String durationInSeconds = processAudioInternal(videoId);
-
-            // 2. Complete process and save status + duration to DB
-            handleSuccess(videoId, durationInSeconds);
+            String durationFormatted = processAudioInternal(videoId);
+            handleSuccess(videoId, durationFormatted);
         } catch (Exception e) {
             System.err.println("Processing failed for " + videoId + ": " + e.getMessage());
             e.printStackTrace();
@@ -261,14 +263,14 @@ public class AudioProcessorService {
         }
     }
 
-    private void handleSuccess(String videoId, String durationInSeconds) {
+    private void handleSuccess(String videoId, String formattedDuration) {
         statusManager.updateStatus(videoId, Status.COMPLETED);
         videoRepository.findById(videoId).ifPresent(entry -> {
             entry.setStatus(Status.COMPLETED.name());
-            entry.setDuration(durationInSeconds);
+            entry.setDuration(formattedDuration);
             entry.setProcessedAt(LocalDateTime.now());
             videoRepository.save(entry);
-            System.out.println("COMPLETED + DB updated: " + videoId + " | Duration: " + durationInSeconds + "s at " + entry.getProcessedAt());
+            System.out.println("COMPLETED + DB updated: " + videoId + " | Duration: " + formattedDuration + " at " + entry.getProcessedAt());
         });
     }
 
@@ -282,141 +284,125 @@ public class AudioProcessorService {
         });
     }
 
-    /**
-     * Reads the WAV file header directly from disk to compute exact duration in seconds.
-     */
-    private long getWavDurationInSeconds(File file) {
+    private String getWavDurationFormatted(File file) {
         if (file == null || !file.exists()) {
-            return 0;
+            return "0:00";
         }
         try (AudioInputStream audioStream = AudioSystem.getAudioInputStream(file)) {
             AudioFormat format = audioStream.getFormat();
             long frames = audioStream.getFrameLength();
             double durationInSeconds = ((double) frames / format.getFrameRate());
-            return Math.round(durationInSeconds);
+            long totalSeconds = Math.round(durationInSeconds);
+
+            long minutes = totalSeconds / 60;
+            long seconds = totalSeconds % 60;
+
+            return String.format("%d:%02d", minutes, seconds);
         } catch (Exception e) {
-            System.err.println("Failed to read WAV duration for file: " + file.getAbsolutePath() + " - " + e.getMessage());
-            return 0;
+            System.err.println("Failed to read WAV duration: " + e.getMessage());
+            return "0:00";
         }
     }
-private String getWavDurationFormatted(File file) {
-    if (file == null || !file.exists()) {
-        return "0:00";
-    }
-    try (AudioInputStream audioStream = AudioSystem.getAudioInputStream(file)) {
-        AudioFormat format = audioStream.getFormat();
-        long frames = audioStream.getFrameLength();
-        double durationInSeconds = ((double) frames / format.getFrameRate());
-        long totalSeconds = Math.round(durationInSeconds);
 
-        long minutes = totalSeconds / 60;
-        long seconds = totalSeconds % 60;
-
-        return String.format("%d:%02d", minutes, seconds);
-    } catch (Exception e) {
-        System.err.println("Failed to read WAV duration: " + e.getMessage());
-        return "0:00";
-    }
-}
     /*
      * =========================================================
      * MAIN PROCESSING PIPELINE
      * =========================================================
      */
-public String processAudioInternal(String videoId) throws Exception {
+    public String processAudioInternal(String videoId) throws Exception {
 
-    Path videoTracksFolder = PERMANENT_TRACKS_DIR.resolve(videoId);
+        Path videoTracksFolder = PERMANENT_TRACKS_DIR.resolve(videoId);
 
-    /* STEP 1 — VALIDATE */
-    if (Files.exists(videoTracksFolder)
-            && videoTracksFolder.toFile().list() != null
-            && videoTracksFolder.toFile().list().length > 0) {
-        throw new IllegalStateException("Pistes audio déjà trouvées.");
-    }
-    Files.createDirectories(TEMP_DOWNLOAD_DIR);
-    Files.createDirectories(videoTracksFolder);
-
-    String tempInputFile = TEMP_DOWNLOAD_DIR.resolve(videoId + ".wav").toAbsolutePath().toString();
-
-    /* STEP 2 — DOWNLOAD via yt-helper */
-    statusManager.updateStatus(videoId, Status.DOWNLOADING);
-    System.out.println("Downloading via yt-helper: " + videoId);
-
-    downloadAudioViaHelper(videoId, TEMP_DOWNLOAD_DIR.toAbsolutePath().toString());
-
-    if (!Files.exists(Paths.get(tempInputFile))) {
-        throw new RuntimeException("Download completed but expected WAV not found at: " + tempInputFile);
-    }
-
-    /* STEP 3 — SPLEETER + BPM IN PARALLEL */
-    statusManager.updateStatus(videoId, Status.SEPARATING);
-    final String finalTempInputFile = tempInputFile;
-
-    // Task A: Spleeter
-    CompletableFuture<Integer> spleeterFuture = CompletableFuture.supplyAsync(() -> {
-        try {
-            String spleeterCommand = String.format(
-                "\"%s\" \"%s\" \"%s\" -p spleeter:4stems > NUL 2>&1",
-                SPLEETER_EXEC_PATH,
-                finalTempInputFile,
-                PERMANENT_TRACKS_DIR.toAbsolutePath().toString()
-            );
-            ProcessBuilder spleeterBuilder = new ProcessBuilder("cmd.exe", "/c", spleeterCommand);
-            spleeterBuilder.directory(TOOLS_DIR.toFile());
-            spleeterBuilder.environment().put("MODEL_PATH", MODELS_DIR.toAbsolutePath().toString());
-            String existingPath = System.getenv("PATH");
-            spleeterBuilder.environment().put("PATH",
-                TOOLS_DIR.toAbsolutePath().toString() + File.pathSeparator + existingPath);
-            System.out.println("Spleeter started in parallel...");
-            return runCommand(spleeterBuilder);
-        } catch (Exception e) {
-            System.err.println("Spleeter thread error: " + e.getMessage());
-            e.printStackTrace();
-            return -1;
+        /* STEP 1 — VALIDATE */
+        if (Files.exists(videoTracksFolder)
+                && videoTracksFolder.toFile().list() != null
+                && videoTracksFolder.toFile().list().length > 0) {
+            throw new IllegalStateException("Pistes audio déjà trouvées.");
         }
-    });
+        Files.createDirectories(TEMP_DOWNLOAD_DIR);
+        Files.createDirectories(videoTracksFolder);
 
-    // Task B: BPM detection
-    CompletableFuture<Double> bpmFuture = CompletableFuture.supplyAsync(() -> {
-        System.out.println("BPM detection started in parallel...");
-        double bpm = bpmDetector.detect(finalTempInputFile);
-        System.out.println("BPM detected: " + bpm + " for " + videoId);
-        return bpm;
-    });
+        String tempInputFile = TEMP_DOWNLOAD_DIR.resolve(videoId + ".wav").toAbsolutePath().toString();
 
-    CompletableFuture.allOf(spleeterFuture, bpmFuture).join();
+        /* STEP 2 — DOWNLOAD via yt-helper */
+        statusManager.updateStatus(videoId, Status.DOWNLOADING);
+        System.out.println("Downloading via yt-helper: " + videoId);
 
-    int    spleeterExitCode = spleeterFuture.get();
-    double detectedBpm      = bpmFuture.get();
+        downloadAudioViaHelper(videoId, TEMP_DOWNLOAD_DIR.toAbsolutePath().toString());
 
-    /* SAVE BPM */
-    if (detectedBpm > 0) {
-        videoRepository.findById(videoId).ifPresent(entry -> {
-            entry.setBpm(detectedBpm);
-            videoRepository.save(entry);
-            System.out.println("BPM saved: " + detectedBpm + " for " + videoId);
+        if (!Files.exists(Paths.get(tempInputFile))) {
+            throw new RuntimeException("Download completed but expected WAV not found at: " + tempInputFile);
+        }
+
+        /* STEP 3 — SPLEETER + BPM IN PARALLEL */
+        statusManager.updateStatus(videoId, Status.SEPARATING);
+        final String finalTempInputFile = tempInputFile;
+
+        // Task A: Spleeter
+        CompletableFuture<Integer> spleeterFuture = CompletableFuture.supplyAsync(() -> {
+            try {
+                String spleeterCommand = String.format(
+                    "\"%s\" \"%s\" \"%s\" -p spleeter:4stems > NUL 2>&1",
+                    SPLEETER_EXEC_PATH,
+                    finalTempInputFile,
+                    PERMANENT_TRACKS_DIR.toAbsolutePath().toString()
+                );
+                ProcessBuilder spleeterBuilder = new ProcessBuilder("cmd.exe", "/c", spleeterCommand);
+                spleeterBuilder.directory(TOOLS_DIR.toFile());
+                spleeterBuilder.environment().put("MODEL_PATH", MODELS_DIR.toAbsolutePath().toString());
+                String existingPath = System.getenv("PATH");
+                spleeterBuilder.environment().put("PATH",
+                    TOOLS_DIR.toAbsolutePath().toString() + File.pathSeparator + existingPath);
+                System.out.println("Spleeter started in parallel...");
+                return runCommand(spleeterBuilder);
+            } catch (Exception e) {
+                System.err.println("Spleeter thread error: " + e.getMessage());
+                e.printStackTrace();
+                return -1;
+            }
         });
-    }
 
-    /* STEP 4 — VERIFY SPLEETER OUTPUT */
-    Path vocalsPath = videoTracksFolder.resolve("vocals.wav");
-    if (spleeterExitCode != 0) {
-        if (Files.exists(vocalsPath)) {
-            System.out.println("WARNING: Spleeter non-zero exit (" + spleeterExitCode
-                + ") but output found — assuming success.");
-        } else {
-            throw new RuntimeException(
-                "Spleeter failed (code: " + spleeterExitCode + ") — no output file found.");
+        // Task B: BPM detection
+        CompletableFuture<Double> bpmFuture = CompletableFuture.supplyAsync(() -> {
+            System.out.println("BPM detection started in parallel...");
+            double bpm = bpmDetector.detect(finalTempInputFile);
+            System.out.println("BPM detected: " + bpm + " for " + videoId);
+            return bpm;
+        });
+
+        CompletableFuture.allOf(spleeterFuture, bpmFuture).join();
+
+        int    spleeterExitCode = spleeterFuture.get();
+        double detectedBpm      = bpmFuture.get();
+
+        /* SAVE BPM */
+        if (detectedBpm > 0) {
+            videoRepository.findById(videoId).ifPresent(entry -> {
+                entry.setBpm(detectedBpm);
+                videoRepository.save(entry);
+                System.out.println("BPM saved: " + detectedBpm + " for " + videoId);
+            });
         }
+
+        /* STEP 4 — VERIFY SPLEETER OUTPUT */
+        Path vocalsPath = videoTracksFolder.resolve("vocals.wav");
+        if (spleeterExitCode != 0) {
+            if (Files.exists(vocalsPath)) {
+                System.out.println("WARNING: Spleeter non-zero exit (" + spleeterExitCode
+                    + ") but output found — assuming success.");
+            } else {
+                throw new RuntimeException(
+                    "Spleeter failed (code: " + spleeterExitCode + ") — no output file found.");
+            }
+        }
+
+        /* STEP 5 — DURATION FORMATTING & CLEANUP */
+        File downloadedWav = new File(tempInputFile);
+        String formattedDuration = getWavDurationFormatted(downloadedWav);
+
+        Files.deleteIfExists(Paths.get(tempInputFile));
+        System.out.println("Processing complete. Duration: " + formattedDuration + ". Tracks stored in: " + videoTracksFolder);
+
+        return formattedDuration;
     }
-
-    /* STEP 5 — DURATION FORMATTING & CLEANUP */
-    File downloadedWav = new File(tempInputFile);
-    String formattedDuration = getWavDurationFormatted(downloadedWav);
-
-    Files.deleteIfExists(Paths.get(tempInputFile));
-    System.out.println("Processing complete. Duration: " + formattedDuration + ". Tracks stored in: " + videoTracksFolder);
-
-    return formattedDuration;
-}
 }

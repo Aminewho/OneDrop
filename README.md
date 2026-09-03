@@ -138,8 +138,12 @@ Remove-Item -Path C:\Users\a.ziadi\PROJECTS\OneDrop\OneDrop\src\main\resources\s
 Copy-Item -Path C:\Users\a.ziadi\PROJECTS\OneDrop\OneDropMusic\dist\public\ -Destination C:\Users\a.ziadi\PROJECTS\OneDrop\OneDrop\src\main\resources\static -Recurse -Force
 Pour generer le setup on met le jar dans app puis  on va dand onedrop deskotop et on execute : npm run dist
  
+ yt-dlp in dev mode 
+  -C:\Users\THINKPAD\Projects\OneDrop> . .\.venv\Scripts\Activate.ps1
+  -python OneDrop\tools\server.py
 
-  C:\Users\THINKPAD\Projects\OneDrop> . .\.venv\Scripts\Activate.ps1
+yt-dlp in exe 
+pyinstaller --onefile --name yt-helper server.py
 
 
 To Do : 
