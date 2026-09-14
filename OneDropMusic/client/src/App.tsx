@@ -31,7 +31,6 @@ function Router() {
 
 function App() {
  useEffect(() => {
-
   const loadBranding = async () => {
 
     try {

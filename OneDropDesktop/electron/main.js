@@ -1,5 +1,5 @@
 const { app, BrowserWindow, dialog } = require("electron");
-const { spawn } = require("child_process");
+const { spawn, execFile } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 const http = require("http");
@@ -14,6 +14,24 @@ let splashWindow;
 let mainWindow;
 let javaProcess;
 let springStarted = false;
+
+const LOCALAPPDATA_DIR = path.join(process.env.LOCALAPPDATA || path.join(require("os").homedir(), "AppData", "Local"), "OneDrop");
+const SHUTDOWN_LOG_FILE = path.join(LOCALAPPDATA_DIR, "electron-shutdown.log");
+
+function logShutdown(message) {
+
+    const line = `[${new Date().toISOString()}] ${message}`;
+
+    console.log(line);
+
+    try {
+        fs.mkdirSync(LOCALAPPDATA_DIR, { recursive: true });
+        fs.appendFileSync(SHUTDOWN_LOG_FILE, line + "\n");
+    } catch (err) {
+        console.error("Failed to write shutdown log:", err);
+    }
+
+}
 
 // En développement : ../app
 // Après installation : resources/app
@@ -145,6 +163,72 @@ function startSpring() {
 
 }
 
+function killHelperProcess() {
+
+    // javaProcess.kill() is a hard TerminateProcess() on Windows, so the JVM
+    // never runs its shutdown hooks and yt-helper.exe (its child process) is
+    // orphaned. Kill it directly by name to guarantee cleanup.
+    //
+    // This returns a Promise that only resolves once taskkill has actually
+    // finished (or a timeout fires) — app.quit()/app.exit() tear down the
+    // process (and any Job Object its children belong to) almost immediately
+    // after the synchronous handler returns, which was killing the spawned
+    // taskkill.exe mid-flight before its callback ever ran.
+    return new Promise((resolve) => {
+
+        let settled = false;
+        const finish = () => {
+            if (!settled) {
+                settled = true;
+                resolve();
+            }
+        };
+
+        const timeoutId = setTimeout(() => {
+            logShutdown("taskkill timed out after 5s, continuing shutdown anyway");
+            finish();
+        }, 5000);
+
+        execFile("taskkill", ["/F", "/IM", "yt-helper.exe"], (error, stdout, stderr) => {
+
+            clearTimeout(timeoutId);
+
+            if (error) {
+                logShutdown(`taskkill error: ${error.message}`);
+            }
+            if (stdout && stdout.trim()) {
+                logShutdown(`taskkill stdout: ${stdout.trim()}`);
+            }
+            if (stderr && stderr.trim()) {
+                logShutdown(`taskkill stderr: ${stderr.trim()}`);
+            }
+
+            finish();
+
+        });
+
+    });
+
+}
+
+async function performShutdown() {
+
+    logShutdown("performShutdown() starting");
+
+    if (javaProcess) {
+        logShutdown("killing javaProcess");
+        javaProcess.kill();
+        javaProcess = null;
+    } else {
+        logShutdown("javaProcess already null, skipping");
+    }
+
+    await killHelperProcess();
+
+    logShutdown("performShutdown() complete");
+
+}
+
 function waitForSpring() {
 
     console.log("Waiting for Spring Boot...");
@@ -214,14 +298,6 @@ function createMainWindow() {
 
     });
 
-    mainWindow.on("closed", () => {
-
-        if (javaProcess) {
-            javaProcess.kill();
-        }
-
-    });
-
 }
 
 app.whenReady().then(() => {
@@ -240,20 +316,25 @@ app.whenReady().then(() => {
 
 app.on("window-all-closed", () => {
 
-    if (javaProcess) {
-        javaProcess.kill();
-    }
-
     if (process.platform !== "darwin") {
         app.quit();
     }
 
 });
 
-app.on("before-quit", () => {
+let isShuttingDown = false;
 
-    if (javaProcess) {
-        javaProcess.kill();
+app.on("before-quit", event => {
+
+    if (isShuttingDown) {
+        return;
     }
+
+    isShuttingDown = true;
+    event.preventDefault();
+
+    performShutdown()
+        .catch(err => logShutdown(`performShutdown error: ${err.message}`))
+        .finally(() => app.exit(0));
 
 });

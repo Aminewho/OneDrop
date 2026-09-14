@@ -100,6 +100,7 @@ public class AudioProcessorService {
      * =========================================================
      */
     public static final Path TOOLS_DIR            = APP_INSTALL_DIR.resolve("tools");
+    private static final Path USER_TOOLS_DIR       = USER_DATA_DIR.resolve("tools");
     private static final Path MODELS_DIR           = APP_INSTALL_DIR.resolve("pretrained_models");
     private static final Path TEMP_DOWNLOAD_DIR    = USER_DATA_DIR.resolve("temp");
     private static final Path PERMANENT_TRACKS_DIR = USER_DATA_DIR.resolve("tracks");
@@ -109,7 +110,7 @@ public class AudioProcessorService {
         TOOLS_DIR.resolve("spleeter.exe").toAbsolutePath().toString();
 
     public static final String YT_HELPER_EXEC_PATH =
-        TOOLS_DIR.resolve("yt-helper.exe").toAbsolutePath().toString();
+        USER_TOOLS_DIR.resolve("yt-helper.exe").toAbsolutePath().toString();
 
     private static final String YT_HELPER_URL = "http://127.0.0.1:8082";
 
@@ -121,9 +122,11 @@ public class AudioProcessorService {
     static {
         try {
             Files.createDirectories(USER_DATA_DIR);
+            Files.createDirectories(USER_TOOLS_DIR);
             Files.createDirectories(TEMP_DOWNLOAD_DIR);
             Files.createDirectories(PERMANENT_TRACKS_DIR);
             Files.createDirectories(DATABASE_DIR);
+            copyHelperToUserDataIfNeeded();
 
             System.out.println("========================================");
             System.out.println("OneDrop Application Paths Initialized");
@@ -147,6 +150,24 @@ public class AudioProcessorService {
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize application directories", e);
         }
+    }
+
+    private static void copyHelperToUserDataIfNeeded() throws IOException {
+        Path installHelper = TOOLS_DIR.resolve("yt-helper.exe");
+        Path userHelper = USER_TOOLS_DIR.resolve("yt-helper.exe");
+
+        if (Files.exists(userHelper)) {
+            System.out.println("yt-helper.exe already present in AppData: " + userHelper);
+            return;
+        }
+
+        if (!Files.exists(installHelper)) {
+            System.out.println("yt-helper.exe not found in install folder; AppData copy will be created when available: " + installHelper);
+            return;
+        }
+
+        Files.copy(installHelper, userHelper, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        System.out.println("Copied yt-helper.exe from install folder to AppData: " + userHelper);
     }
 
     private static void validatePathExists(Path path, String description) {
@@ -208,6 +229,17 @@ public class AudioProcessorService {
             }
         }).start();
 
+        new Thread(() -> {
+            try (BufferedReader r = new BufferedReader(
+                    new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = r.readLine()) != null)
+                    System.out.println("EXTERNAL OUT: " + line);
+            } catch (IOException e) {
+                System.err.println("Error reading stdout: " + e.getMessage());
+            }
+        }).start();
+
         boolean finished = process.waitFor(20, TimeUnit.MINUTES);
         if (!finished) {
             process.destroyForcibly();
@@ -222,10 +254,12 @@ public class AudioProcessorService {
      * =========================================================
      */
     private void downloadAudioViaHelper(String videoId, String outputDir) throws Exception {
+        String ffmpegPath = TOOLS_DIR.resolve("ffmpeg.exe").toAbsolutePath().toString();
         String body = String.format(
-            "{\"videoId\":\"%s\",\"outputDir\":\"%s\"}",
+            "{\"videoId\":\"%s\",\"outputDir\":\"%s\",\"ffmpegPath\":\"%s\"}",
             videoId,
-            outputDir.replace("\\", "\\\\")   // escape Windows backslashes for JSON
+            outputDir.replace("\\", "\\\\"),
+            ffmpegPath.replace("\\", "\\\\")
         );
 
         HttpRequest request = HttpRequest.newBuilder()
@@ -341,13 +375,13 @@ public class AudioProcessorService {
         // Task A: Spleeter
         CompletableFuture<Integer> spleeterFuture = CompletableFuture.supplyAsync(() -> {
             try {
-                String spleeterCommand = String.format(
-                    "\"%s\" \"%s\" \"%s\" -p spleeter:4stems > NUL 2>&1",
+                ProcessBuilder spleeterBuilder = new ProcessBuilder(
                     SPLEETER_EXEC_PATH,
                     finalTempInputFile,
-                    PERMANENT_TRACKS_DIR.toAbsolutePath().toString()
+                    PERMANENT_TRACKS_DIR.toAbsolutePath().toString(),
+                    "-p",
+                    "spleeter:4stems"
                 );
-                ProcessBuilder spleeterBuilder = new ProcessBuilder("cmd.exe", "/c", spleeterCommand);
                 spleeterBuilder.directory(TOOLS_DIR.toFile());
                 spleeterBuilder.environment().put("MODEL_PATH", MODELS_DIR.toAbsolutePath().toString());
                 String existingPath = System.getenv("PATH");

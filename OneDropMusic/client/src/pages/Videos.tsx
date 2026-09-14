@@ -10,9 +10,6 @@ import SearchHistoryDropdown from "@/components/SearchHistoryDropdown";
 import { useSearchHistory } from "@/hooks/useSearchHistory";
 
 const API_BASE_URL = "http://localhost:8081";
-const LS_SEARCH_QUERY_KEY  = "videoSearchQuery_page";
-const LS_VIDEOS_KEY        = "videoResults_page";
-const LS_TASK_STATUSES_KEY = "videoTaskStatuses_page";
 
 export type TaskStatus =
   | "PENDING" | "DOWNLOADING" | "SEPARATING"
@@ -27,6 +24,10 @@ interface YoutubeApiResponse {
 views?: string; // Matches Java VideoDto "views" property
 }
 
+const SESSION_SEARCH_QUERY_KEY = "youtubeSearchQuery_session";
+const SESSION_VIDEOS_KEY = "youtubeResults_session";
+const SESSION_TASK_STATUSES_KEY = "youtubeTaskStatuses_session";
+
 export interface Video {
   id: string;
   title: string;
@@ -35,16 +36,28 @@ export interface Video {
   views: string;
 }
 
-function useLocalStorageState<T>(key: string, def: T): [T, React.Dispatch<React.SetStateAction<T>>] {
-  const load = (): T => {
-    try { const s = localStorage.getItem(key); if (s) return JSON.parse(s) as T; }
-    catch { localStorage.removeItem(key); }
-    return def;
-  };
-  const [state, setState] = useState<T>(load);
-  useEffect(() => { try { localStorage.setItem(key, JSON.stringify(state)); } catch {} }, [key, state]);
+function useSessionStorageState<T>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] {
+  const [state, setState] = useState<T>(() => {
+    try {
+      const stored = sessionStorage.getItem(key);
+      return stored ? JSON.parse(stored) as T : defaultValue;
+    } catch {
+      sessionStorage.removeItem(key);
+      return defaultValue;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(key, JSON.stringify(state));
+    } catch {
+      // Ignore storage failures; the in-memory state remains usable.
+    }
+  }, [key, state]);
+
   return [state, setState];
 }
+
 function formatViewCount(views?: string | null): string {
   if (!views || views.trim() === "") return "N/A";
   return views;
@@ -65,9 +78,9 @@ function extractYoutubeId(input: string): string | null {
 }
 
 export default function Videos() {
-  const [searchQuery,  setSearchQuery]  = useLocalStorageState<string>(LS_SEARCH_QUERY_KEY, "");
-  const [videos,       setVideos]       = useLocalStorageState<Video[]>(LS_VIDEOS_KEY, []);
-  const [taskStatuses, setTaskStatuses] = useLocalStorageState<Record<string, TaskStatus>>(LS_TASK_STATUSES_KEY, {});
+  const [searchQuery,  setSearchQuery]  = useSessionStorageState(SESSION_SEARCH_QUERY_KEY, "");
+  const [videos,       setVideos]       = useSessionStorageState<Video[]>(SESSION_VIDEOS_KEY, []);
+  const [taskStatuses, setTaskStatuses] = useSessionStorageState<Record<string, TaskStatus>>(SESSION_TASK_STATUSES_KEY, {});
   const [isLoading,    setIsLoading]    = useState(false);
   const [error,        setError]        = useState<string | null>(null);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);

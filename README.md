@@ -124,6 +124,110 @@ compress Your Executables with UPX (Saves 40% across all tools)
 Dynamic coloring : Plus tard je  n'aurais qu'à remplacer les valeurs statiques par les valeurs renvoyées par ton serveur distant et réécrire ce même config.json dans le fichier ConfigService.java Le frontend n'aura aucun changement à faire.
 Pour ajouter un theme : il faut ajouter un theme dans index.css et ajouter un le theme dans branding.ts et le logos dans le dossier logos puis le fichier config.json servira le vrai theme. 
 
+
+
+Je développe une application Windows appelée OneDrop.
+
+Architecture :
+- Electron comme desktop shell
+- React frontend
+- Spring Boot / Java backend
+- Python FastAPI helper compilé avec PyInstaller
+- yt-helper.exe écoute sur 127.0.0.1:8082
+- YoutubeService démarre et arrête actuellement yt-helper.exe
+- AudioProcessorService utilise le helper pour télécharger les vidéos/audio YouTube.
+
+Je veux implémenter un système d'auto-update UNIQUEMENT pour yt-helper.exe.
+
+Repository GitHub :
+https://github.com/Aminewho/OneDrop
+
+Une première GitHub Release existe :
+yt-helper-v1.0.0
+
+Elle contient :
+- yt-helper.exe
+- version.json
+
+Le SHA-256 actuel de yt-helper.exe est :
+94b881a309306721bba61b5f7e22c8436b2b131e00d98c5ebd73c075a137ad3d
+
+Le helper doit être utilisé depuis :
+%LOCALAPPDATA%\OneDrop\tools\yt-helper.exe
+
+La copie présente dans l'installation de OneDrop sert uniquement de copie initiale/fallback.
+
+Je veux ce workflow :
+
+1. yt-helper.py possède une constante HELPER_VERSION = "1.0.0".
+2. Ajouter GET /version retournant :
+   {"version":"1.0.0"}
+3. Java peut récupérer la version locale via /version.
+4. Java récupère le manifest version.json depuis GitHub.
+5. Comparer correctement les versions semver.
+6. Si une nouvelle version existe, télécharger yt-helper.exe vers yt-helper.exe.download.
+7. Calculer le SHA-256 du fichier téléchargé.
+8. Comparer avec le SHA-256 présent dans version.json.
+9. Si le hash est incorrect, supprimer le téléchargement et conserver l'ancien helper.
+10. Si le hash est correct, arrêter proprement le helper.
+11. Remplacer yt-helper.exe par la nouvelle version.
+12. Redémarrer le helper.
+13. Vérifier /health puis /version.
+14. En cas d'échec du remplacement ou du démarrage, prévoir un fallback vers l'ancien helper.
+15. Une absence d'Internet ou une erreur GitHub ne doit jamais empêcher OneDrop de démarrer.
+16. La vérification doit être exécutée en arrière-plan et ne doit pas bloquer le démarrage de l'application.
+
+Je veux implémenter cela progressivement.
+
+Commence par analyser mon YoutubeService actuel et mon yt-helper.py actuel avant de proposer du code.
+L'auto-update je la veux dans un fichier tout seul ne la met pas dans le fichier youtubeService
+Ne modifie pas encore AudioProcessorService sauf si cela est nécessaire pour que le changement de chemin vers %LOCALAPPDATA%\OneDrop\tools\yt-helper.exe soit cohérent.
+
+Ne mélange pas ce système avec electron-updater : l'auto-update de yt-helper est un système indépendant de l'auto-update future de OneDrop.
+
+Procède phase par phase :
+Phase 1 : /version et version locale
+Phase 2 : récupération de version.json
+Phase 3 : comparaison des versions
+Phase 4 : téléchargement
+Phase 5 : SHA-256
+Phase 6 : arrêt/remplacement/redémarrage
+Phase 7 : orchestration complète
+Phase 8 : intégration React
+
+À chaque phase :
+- explique ce qu'on fait ;
+- donne le code exact à modifier ;
+- indique dans quel fichier ;
+- explique comment tester ;
+- n'implémente pas la phase suivante avant validation de la phase actuelle.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 git fetch origin 
 git reset --hard origin/stable-version
 
@@ -142,10 +246,17 @@ Pour generer le setup on met le jar dans app puis  on va dand onedrop deskotop e
   -C:\Users\THINKPAD\Projects\OneDrop> . .\.venv\Scripts\Activate.ps1
   -python OneDrop\tools\server.py
 
-yt-dlp in exe 
-pyinstaller --onefile --name yt-helper server.py
+yt-dlp in exe :
+pyinstaller --onefile --name yt-helper server.py : this will genrate the exe 
+to update the helper:
+1- we change the version in the server.py file and then => 2-C:\Users\THINKPAD\Projects\OneDrop\OneDrop\tools> pyinstaller --onefile --name yt-helper server.py
+3- we get sha256 of the generated exe and then we update the version.json file 
+4- we publish a new release uploading the two files(exe and json)
+
 
 
 To Do : 
 - explore the yt-dlp search 
 - navbar
+- yt-helper update and ending process
+

@@ -63,7 +63,7 @@ type ActiveTab = 'All' | 'Tracks' | 'Artists' | 'Albums';
 // ⚠️ IMPORTANT : Remplacez ceci par votre clé API Google Cloud
 const YOUTUBE_API_KEY = "AIzaSyDEYDLuOqwcFQyomz8UwYTrMChjY_nSFks"; 
 const BACKEND_BASE_URL = "http://localhost:8081"; // Base URL de votre proxy/backend
-// Local storage key for preserving page state
+// Session storage keeps results while navigating, but not across app launches.
 const STORAGE_KEY = 'spotify_search_page_state_v1';
 
 // --- Helpers ---
@@ -522,10 +522,10 @@ const handleSearch = useCallback(async (e?: React.FormEvent, customQuery?: strin
     }
 }, [searchQuery, searchSpotify, push]);
 
-// --- Persistence: load saved state from localStorage on mount ---
+// --- Persistence: load saved state from the current app session ---
 useEffect(() => {
     try {
-        const raw = localStorage.getItem(STORAGE_KEY);
+        const raw = sessionStorage.getItem(STORAGE_KEY);
         if (!raw) return;
         const parsed: any = JSON.parse(raw);
 
@@ -542,7 +542,7 @@ useEffect(() => {
     }
 }, []);
 
-// Save relevant state to localStorage whenever it changes
+// Save relevant state to the current session whenever it changes
 useEffect(() => {
     try {
         const toSave = {
@@ -555,7 +555,7 @@ useEffect(() => {
             activeProcessingTrack,
             taskStatuses
         };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
     } catch (err) {
         console.warn('Failed to persist Spotify page state:', err);
     }
