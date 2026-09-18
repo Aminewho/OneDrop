@@ -149,8 +149,7 @@ Elle contient :
 - yt-helper.exe
 - version.json
 
-Le SHA-256 actuel de yt-helper.exe est :
-94b881a309306721bba61b5f7e22c8436b2b131e00d98c5ebd73c075a137ad3d
+
 
 Le helper doit être utilisé depuis :
 %LOCALAPPDATA%\OneDrop\tools\yt-helper.exe
